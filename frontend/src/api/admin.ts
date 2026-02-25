@@ -39,6 +39,18 @@ export interface CategoryRequest {
   status?: string
 }
 
+export interface LlmModelConfigDTO {
+  id: number
+  llmModelId: number
+  modelName?: string
+  configKey: string
+  configValue: string
+  configType: string
+  isEncrypted: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export const adminApi = {
   // Approval
   async approveAsset(assetId: number, comment: string) {
@@ -129,5 +141,23 @@ export const adminApi = {
     await axios.put(`/api/admin/category/${id}/sort`, null, {
       params: { sortOrder }
     })
+  },
+
+  // LLM Config
+  async upsertLlmConfig(modelId: number, config: any) {
+    const response = await axios.post('/api/admin/llm-config', {
+      ...config,
+      llmModelId: modelId
+    })
+    return response.data.data
+  },
+
+  async deleteLlmConfig(id: number) {
+    await axios.delete(`/api/admin/llm-config/${id}`)
+  },
+
+  async getConfigsByModelId(modelId: number) {
+    const response = await axios.get(`/api/admin/llm-config/model/${modelId}`)
+    return response.data.data || []
   }
 }

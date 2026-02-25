@@ -68,6 +68,41 @@ const routes: RouteRecordRaw[] = [
     path: '/my/assets',
     name: 'MyPublished',
     component: () => import('@/views/asset/MyPublished.vue')
+  },
+  {
+    path: '/admin',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    children: [
+      {
+        path: '',
+        redirect: '/admin/dashboard'
+      },
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('@/views/admin/Statistics.vue')
+      },
+      {
+        path: 'assets',
+        name: 'AdminAssets',
+        component: () => import('@/views/admin/AssetManagement.vue')
+      },
+      {
+        path: 'approval',
+        name: 'AdminApproval',
+        component: () => import('@/views/admin/ReviewQueue.vue')
+      },
+      {
+        path: 'categories',
+        name: 'AdminCategories',
+        component: () => import('@/views/admin/CategoryManagement.vue')
+      },
+      {
+        path: 'llm-config',
+        name: 'AdminLlmConfig',
+        component: () => import('@/views/admin/LLMConfig.vue')
+      }
+    ]
   }
 ]
 
