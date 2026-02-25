@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ai-marketplace
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://10.254.254.103:5432/ai_marketplace
+    username: postgres
+    password: postgres
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
