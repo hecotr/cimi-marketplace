@@ -3,7 +3,15 @@
     <el-card v-if="model">
       <template #header>
         <div class="card-header">
-          <h3>{{ model.name }}</h3>
+          <div class="header-left">
+            <h3>{{ model.name }}</h3>
+            <VersionSelector
+              v-if="model.assetId"
+              :asset-id="model.assetId"
+              v-model="selectedVersion"
+              @change="handleVersionChange"
+            />
+          </div>
           <el-button @click="goBack">返回</el-button>
         </div>
       </template>
@@ -60,6 +68,12 @@
 
       <el-divider />
 
+      <div class="version-history" v-if="model.assetId">
+        <VersionHistory :asset-id="model.assetId" />
+      </div>
+
+      <el-divider />
+
       <div class="response-section" v-if="response">
         <h4>测试结果</h4>
         <div class="chat-messages">
@@ -89,6 +103,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { getModelDetail, testModel } from '@/api/llm'
 import type { LlmModelDTO, LlmTestRequest } from '@/types/llm'
 import { ElMessage } from 'element-plus'
+import VersionSelector from '@/components/VersionSelector.vue'
+import VersionHistory from '@/components/VersionHistory.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,6 +121,7 @@ const testForm = ref<LlmTestRequest>({
 })
 
 const response = ref<any>()
+const selectedVersion = ref('')
 
 onMounted(async () => {
   const data = await getModelDetail(modelId)
@@ -132,6 +149,14 @@ const sendTest = async () => {
 const goBack = () => {
   router.back()
 }
+
+const handleVersionChange = async (version: string) => {
+  // Reload model data for the selected version
+  if (model.value?.assetId) {
+    // Implementation depends on how version-specific data is loaded
+    console.log('Version changed to:', version)
+  }
+}
 </script>
 
 <style scoped>
@@ -143,6 +168,12 @@ const goBack = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .model-info {
@@ -180,6 +211,10 @@ const goBack = () => {
   margin-left: 10px;
   color: #409eff;
   font-weight: bold;
+}
+
+.version-history {
+  margin: 20px 0;
 }
 
 .response-section {

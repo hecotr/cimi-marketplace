@@ -3,7 +3,15 @@
     <el-card v-if="skill">
       <template #header>
         <div class="card-header">
-          <h3>{{ skill.name }}</h3>
+          <div class="header-left">
+            <h3>{{ skill.name }}</h3>
+            <VersionSelector
+              v-if="skill.assetId"
+              :asset-id="skill.assetId"
+              v-model="selectedVersion"
+              @change="handleVersionChange"
+            />
+          </div>
           <el-button @click="goBack">返回</el-button>
         </div>
       </template>
@@ -19,6 +27,12 @@
         <span><el-icon><View /></el-icon> {{ skill.viewCount }} 浏览</span>
         <span><el-icon><Download /></el-icon> {{ skill.downloadCount }} 下载</span>
         <span><el-icon><Star /></el-icon> {{ skill.likeCount }} 点赞</span>
+      </div>
+
+      <el-divider />
+
+      <div class="version-history" v-if="skill.assetId">
+        <VersionHistory :asset-id="skill.assetId" />
       </div>
 
       <el-divider />
@@ -69,12 +83,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { View, Download, Star, DocumentCopy, StarFilled } from '@element-plus/icons-vue'
 import { getSkillDetail, toggleLike as toggleLikeApi, toggleFavorite as toggleFavoriteApi, incrementView, incrementDownload } from '@/api/skills'
 import { ElMessage } from 'element-plus'
+import VersionSelector from '@/components/VersionSelector.vue'
+import VersionHistory from '@/components/VersionHistory.vue'
 
 const route = useRoute()
 const router = useRouter()
 const skillId = Number(route.params.id)
 const skill = ref<any>()
 const content = ref('# Sample Skill\n\nThis is a sample skill content.')
+const selectedVersion = ref('')
 
 onMounted(async () => {
   const data = await getSkillDetail(skillId)
@@ -114,6 +131,13 @@ const toggleFavorite = async () => {
 const goBack = () => {
   router.back()
 }
+
+const handleVersionChange = async (version: string) => {
+  // Reload skill data for the selected version
+  if (skill.value?.assetId) {
+    console.log('Version changed to:', version)
+  }
+}
 </script>
 
 <style scoped>
@@ -125,6 +149,12 @@ const goBack = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .skill-info {
@@ -149,6 +179,10 @@ const goBack = () => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.version-history {
+  margin: 20px 0;
 }
 
 .content-section {
