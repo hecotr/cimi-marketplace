@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.util.List;
 
 /**
@@ -86,23 +87,14 @@ public class AssetController {
 
     @GetMapping("/my/drafts")
     public Result<List<AssetDTO>> getMyDrafts(@RequestHeader("X-User-Id") Long userId) {
-        List<AssetDTO> assets = assetService.getDraftAssets(userId);
-        return Result.success(assets);
+        List<AssetDTO> drafts = assetService.getMyDrafts();
+        return Result.success(drafts);
     }
 
     @GetMapping("/my/published")
     public Result<List<AssetDTO>> getMyPublished(@RequestHeader("X-User-Id") Long userId) {
-        List<AssetDTO> assets = assetService.getPublishedAssetsByUser(userId);
-        return Result.success(assets);
-    }
-
-    @GetMapping("/my")
-    public Result<List<AssetDTO>> getMyAssets(
-            @RequestHeader("X-User-Id") Long userId,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        List<AssetDTO> assets = assetService.getUserAssets(userId, page, size);
-        return Result.success(assets);
+        List<AssetDTO> published = assetService.getMyPublished();
+        return Result.success(published);
     }
 
     @PostMapping("/{id}/download")

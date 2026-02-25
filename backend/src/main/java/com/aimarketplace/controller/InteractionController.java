@@ -4,8 +4,9 @@ import com.aimarketplace.common.Result;
 import com.aimarketplace.service.InteractionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
+
+import jakarta.validation.constraints.*;
 
 /**
  * Interaction Controller
