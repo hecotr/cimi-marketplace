@@ -12,7 +12,11 @@
     "vue-router": "^4.2.5",
     "axios": "^1.6.0",
     "element-plus": "^2.5.0",
-    "@element-plus/icons-vue": "^2.3.1"
+    "@element-plus/icons-vue": "^2.3.1",
+    "pinia": "^2.1.7",
+    "@vueuse/core": "^10.7.0",
+    "md-editor-v3": "^4.11.0",
+    "monaco-editor": "^0.45.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
