@@ -48,6 +48,26 @@ const routes: RouteRecordRaw[] = [
     path: '/favorites',
     name: 'Favorites',
     component: () => import('@/views/Favorites.vue')
+  },
+  {
+    path: '/publish',
+    name: 'PublishAsset',
+    component: () => import('@/views/asset/PublishAsset.vue')
+  },
+  {
+    path: '/asset/:id/edit',
+    name: 'EditAsset',
+    component: () => import('@/views/asset/EditAsset.vue')
+  },
+  {
+    path: '/my/drafts',
+    name: 'MyDrafts',
+    component: () => import('@/views/asset/MyDrafts.vue')
+  },
+  {
+    path: '/my/assets',
+    name: 'MyPublished',
+    component: () => import('@/views/asset/MyPublished.vue')
   }
 ]
 
