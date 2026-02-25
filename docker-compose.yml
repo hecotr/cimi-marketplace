@@ -12,9 +12,30 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./backend/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./backend/src/main/resources/db/enhanced-schema.sql:/docker-entrypoint-initdb.d/02-enhanced-schema.sql
     networks:
       - ai-marketplace-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: ai-marketplace-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - ai-marketplace-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   backend:
     build:
@@ -27,8 +48,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ai_marketplace
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: ai-marketplace
     depends_on:
       - postgres
+      - minio
     networks:
       - ai-marketplace-network
 
@@ -46,7 +72,9 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:
 
 networks:
   ai-marketplace-network:
     driver: bridge
+

@@ -94,5 +94,34 @@ export const assetApi = {
 
   async incrementDownload(id: number) {
     await axios.post(`/api/asset/${id}/download`)
+  },
+
+  // Interaction
+  async toggleLike(assetId: number, assetType: string): Promise<boolean> {
+    const response = await axios.post('/api/interaction/like', {
+      assetId,
+      assetType
+    })
+    return response.data.data
+  },
+
+  async toggleFavorite(assetId: number, assetType: string): Promise<void> {
+    await axios.post('/api/interaction/favorite', {
+      assetId,
+      assetType
+    })
+  },
+
+  async removeFavorite(assetId: number, assetType: string): Promise<void> {
+    await axios.delete('/api/interaction/favorite', {
+      params: { assetId, assetType }
+    })
+  },
+
+  async getFavorites(assetType?: string, page = 1, size = 50): Promise<Asset[]> {
+    const response = await axios.get('/api/interaction/favorites', {
+      params: { assetType, page, size }
+    })
+    return response.data.data || []
   }
 }
