@@ -1,15 +1,24 @@
 package com.aimarketplace.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.aimarketplace.common.BusinessException;
 import com.aimarketplace.dto.AssetDTO;
 import com.aimarketplace.dto.AssetPublishRequest;
+import com.aimarketplace.dto.AssetVersionDTO;
+import com.aimarketplace.entity.ApprovalRecord;
 import com.aimarketplace.entity.Asset;
 import com.aimarketplace.entity.AssetVersion;
+import com.aimarketplace.entity.Category;
 import com.aimarketplace.entity.User;
-import com.aimarketplace.mapper.*;
+import com.aimarketplace.mapper.ApprovalRecordMapper;
+import com.aimarketplace.mapper.AssetMapper;
+import com.aimarketplace.mapper.AssetVersionMapper;
+import com.aimarketplace.mapper.CategoryMapper;
+import com.aimarketplace.mapper.UserMapper;
 import com.aimarketplace.service.AssetService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,17 +28,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Asset Service Implementation
- */
+@Slf4j
 @Service
-public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements AssetService {
+public class AssetServiceImpl implements AssetService {
+
+    @Autowired
+    private AssetMapper assetMapper;
 
     @Autowired
     private AssetVersionMapper assetVersionMapper;
-
-    @Autowired
-    private ApprovalRecordMapper approvalRecordMapper;
 
     @Autowired
     private CategoryMapper categoryMapper;
@@ -37,273 +44,307 @@ public class AssetServiceImpl extends ServiceImpl<AssetMapper, Asset> implements
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private ApprovalRecordMapper approvalRecordMapper;
+
+    @Override
+    public IPage<AssetDTO> getAssets(String assetType, String status, Long categoryId,
+                                      String keyword, int page, int size) {
+        Page<Asset> pageParam = new Page<>(page, size);
+
+        LambdaQueryWrapper<Asset> wrapper = new LambdaQueryWrapper<>();
+        if (assetType != null) {
+            wrapper.eq(Asset::getAssetType, assetType);
+        }
+        if (status != null) {
+            wrapper.eq(Asset::getStatus, status);
+        } else {
+            // 默认只显示已审核通过的
+            wrapper.eq(Asset::getStatus, "approved");
+        }
+        if (categoryId != null) {
+            wrapper.eq(Asset::getCategoryId, categoryId);
+        }
+        if (keyword != null && !keyword.isEmpty()) {
+            wrapper.and(w -> w
+                .like(Asset::getName, keyword)
+                .or()
+                .like(Asset::getDescription, keyword)
+            );
+        }
+        wrapper.orderByDesc(Asset::getCreatedAt);
+
+        IPage<Asset> assetPage = assetMapper.selectPage(pageParam, wrapper);
+
+        return assetPage.convert(this::toDTO);
+    }
+
+    @Override
+    public List<AssetDTO> getMyAssets(Long userId, String assetType, String status) {
+        LambdaQueryWrapper<Asset> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Asset::getCreatedBy, userId);
+        if (assetType != null) {
+            wrapper.eq(Asset::getAssetType, assetType);
+        }
+        if (status != null) {
+            wrapper.eq(Asset::getStatus, status);
+        }
+        wrapper.orderByDesc(Asset::getCreatedAt);
+
+        List<Asset> assets = assetMapper.selectList(wrapper);
+        return assets.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public AssetDTO getAssetById(Long id) {
+        Asset asset = assetMapper.selectById(id);
+        if (asset == null) {
+            throw new BusinessException("资产不存在");
+        }
+        AssetDTO dto = toDTO(asset);
+
+        // 加载版本信息
+        List<AssetVersion> versions = assetVersionMapper.selectList(
+            new LambdaQueryWrapper<AssetVersion>()
+                .eq(AssetVersion::getAssetId, id)
+                .orderByDesc(AssetVersion::getVersionNo)
+        );
+        dto.setVersions(versions.stream().map(this::toVersionDTO).collect(Collectors.toList()));
+
+        return dto;
+    }
+
     @Override
     @Transactional
-    public AssetDTO createAsset(AssetPublishRequest request) {
+    public Long publishAsset(Long userId, AssetPublishRequest request) {
+        // 创建资产
         Asset asset = new Asset();
+        asset.setAssetType(request.getAssetType());
         asset.setName(request.getName());
-        asset.setType(request.getType());
         asset.setDescription(request.getDescription());
         asset.setCategoryId(request.getCategoryId());
-        asset.setContent(request.getContent());
-        asset.setStoragePath(request.getStoragePath());
-        asset.setVersion(request.getVersion());
+        asset.setTags(request.getTags());
+        asset.setCreatedBy(userId);
         asset.setStatus("draft");
-        asset.setViewCount(0);
-        asset.setDownloadCount(0);
-        asset.setLikeCount(0);
-        asset.setCreatedBy(request.getCreatorId());
         asset.setCreatedAt(LocalDateTime.now());
         asset.setUpdatedAt(LocalDateTime.now());
 
-        save(asset);
+        assetMapper.insert(asset);
 
-        // Create initial version
+        // 创建第一个版本
         AssetVersion version = new AssetVersion();
         version.setAssetId(asset.getId());
-        version.setVersion(request.getVersion());
+        version.setVersionNo(1);
         version.setContent(request.getContent());
-        version.setStoragePath(request.getStoragePath());
-        version.setChangeNotes("Initial version");
-        version.setCreatedBy(request.getCreatorId());
+        version.setFileType(request.getFileType());
+        version.setViewCount(0);
+        version.setDownloadCount(0);
+        version.setLikeCount(0);
         version.setCreatedAt(LocalDateTime.now());
-        version.setIsCurrent(true);
+
         assetVersionMapper.insert(version);
 
-        return entityToDTO(asset);
+        // 更新资产的当前版本
+        asset.setCurrentVersionId(version.getId());
+        assetMapper.updateById(asset);
+
+        return asset.getId();
     }
 
     @Override
     @Transactional
-    public AssetDTO publishAsset(Long assetId) {
-        Asset asset = getById(assetId);
+    public void updateAsset(Long id, Long userId, AssetPublishRequest request) {
+        Asset asset = assetMapper.selectById(id);
         if (asset == null) {
-            throw new RuntimeException("Asset not found");
+            throw new BusinessException("资产不存在");
         }
-        if (!asset.getStatus().equals("draft")) {
-            throw new RuntimeException("Only draft assets can be published");
+        if (!asset.getCreatedBy().equals(userId)) {
+            throw new BusinessException("无权修改此资产");
         }
-
-        asset.setStatus("pending");
-        asset.setUpdatedAt(LocalDateTime.now());
-        updateById(asset);
-
-        return entityToDTO(asset);
-    }
-
-    @Override
-    @Transactional
-    public AssetDTO updateAsset(Long assetId, AssetPublishRequest request) {
-        Asset asset = getById(assetId);
-        if (asset == null) {
-            throw new RuntimeException("Asset not found");
-        }
-        if (!asset.getStatus().equals("draft")) {
-            throw new RuntimeException("Only draft assets can be updated");
+        if ("approved".equals(asset.getStatus())) {
+            throw new BusinessException("已审核通过的资产不能直接修改，请创建新版本");
         }
 
         asset.setName(request.getName());
         asset.setDescription(request.getDescription());
         asset.setCategoryId(request.getCategoryId());
-        asset.setContent(request.getContent());
-        asset.setStoragePath(request.getStoragePath());
+        asset.setTags(request.getTags());
         asset.setUpdatedAt(LocalDateTime.now());
-        updateById(asset);
 
-        return entityToDTO(asset);
+        assetMapper.updateById(asset);
+
+        // 更新当前版本的内容
+        if (asset.getCurrentVersionId() != null) {
+            AssetVersion version = assetVersionMapper.selectById(asset.getCurrentVersionId());
+            if (version != null) {
+                version.setContent(request.getContent());
+                version.setFileType(request.getFileType());
+                assetVersionMapper.updateById(version);
+            }
+        }
     }
 
     @Override
-    @Transactional
-    public AssetDTO createVersion(Long assetId, AssetPublishRequest request) {
-        Asset asset = getById(assetId);
+    public void submitForReview(Long id, Long userId) {
+        Asset asset = assetMapper.selectById(id);
         if (asset == null) {
-            throw new RuntimeException("Asset not found");
+            throw new BusinessException("资产不存在");
+        }
+        if (!asset.getCreatedBy().equals(userId)) {
+            throw new BusinessException("无权操作此资产");
+        }
+        if (!"draft".equals(asset.getStatus()) && !"rejected".equals(asset.getStatus())) {
+            throw new BusinessException("当前状态不能提交审核");
         }
 
-        // Deactivate current version
-        AssetVersion currentVersion = assetVersionMapper.findCurrentByAssetId(assetId);
-        if (currentVersion != null) {
-            currentVersion.setIsCurrent(false);
-            assetVersionMapper.updateById(currentVersion);
-        }
-
-        // Create new version
-        AssetVersion newVersion = new AssetVersion();
-        newVersion.setAssetId(assetId);
-        newVersion.setVersion(request.getVersion());
-        newVersion.setContent(request.getContent());
-        newVersion.setStoragePath(request.getStoragePath());
-        newVersion.setChangeNotes(request.getChangeNotes());
-        newVersion.setCreatedBy(request.getCreatorId());
-        newVersion.setCreatedAt(LocalDateTime.now());
-        newVersion.setIsCurrent(true);
-        assetVersionMapper.insert(newVersion);
-
-        // Update asset
-        asset.setContent(request.getContent());
-        asset.setStoragePath(request.getStoragePath());
-        asset.setVersion(request.getVersion());
+        asset.setStatus("pending_review");
         asset.setUpdatedAt(LocalDateTime.now());
-        updateById(asset);
-
-        return entityToDTO(asset);
+        assetMapper.updateById(asset);
     }
 
     @Override
-    public AssetDTO getAssetById(Long assetId) {
-        Asset asset = getById(assetId);
-        return asset != null ? entityToDTO(asset) : null;
-    }
-
-    @Override
-    public AssetDTO getAssetByVersion(Long assetId, String version) {
-        Asset asset = getById(assetId);
+    @Transactional
+    public void approve(Long id, Long reviewerId, String comment) {
+        Asset asset = assetMapper.selectById(id);
         if (asset == null) {
-            return null;
+            throw new BusinessException("资产不存在");
+        }
+        if (!"pending_review".equals(asset.getStatus())) {
+            throw new BusinessException("当前状态不需要审核");
         }
 
-        AssetVersion assetVersion = assetVersionMapper.findByAssetIdAndVersion(assetId, version);
-        if (assetVersion != null) {
-            asset.setContent(assetVersion.getContent());
-            asset.setStoragePath(assetVersion.getStoragePath());
-        }
+        asset.setStatus("approved");
+        asset.setUpdatedAt(LocalDateTime.now());
+        assetMapper.updateById(asset);
 
-        return entityToDTO(asset);
-    }
-
-    @Override
-    public List<AssetDTO> getPublishedAssets(String type, int page, int size) {
-        Page<Asset> pageParam = new Page<>(page, size);
-        QueryWrapper<Asset> wrapper = new QueryWrapper<>();
-        wrapper.eq("type", type);
-        wrapper.eq("status", "published");
-        wrapper.orderByDesc("created_at");
-        Page<Asset> result = page(pageParam, wrapper);
-        return result.getRecords().stream().map(this::entityToDTO).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<AssetDTO> getUserAssets(Long userId, int page, int size) {
-        Page<Asset> pageParam = new Page<>(page, size);
-        QueryWrapper<Asset> wrapper = new QueryWrapper<>();
-        wrapper.eq("created_by", userId);
-        wrapper.orderByDesc("created_at");
-        Page<Asset> result = page(pageParam, wrapper);
-        return result.getRecords().stream().map(this::entityToDTO).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<AssetDTO> getDraftAssets(Long userId) {
-        QueryWrapper<Asset> wrapper = new QueryWrapper<>();
-        wrapper.eq("created_by", userId);
-        wrapper.eq("status", "draft");
-        wrapper.orderByDesc("created_at");
-        return list(wrapper).stream().map(this::entityToDTO).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<AssetDTO> getPublishedAssetsByUser(Long userId) {
-        QueryWrapper<Asset> wrapper = new QueryWrapper<>();
-        wrapper.eq("created_by", userId);
-        wrapper.eq("status", "published");
-        wrapper.orderByDesc("created_at");
-        return list(wrapper).stream().map(this::entityToDTO).collect(Collectors.toList());
-    }
-
-    @Override
-    public List<AssetDTO> searchAssets(String keyword, String type, Long categoryId, int page, int size) {
-        Page<Asset> pageParam = new Page<>(page, size);
-        QueryWrapper<Asset> wrapper = new QueryWrapper<>();
-        wrapper.eq("status", "published");
-
-        if (keyword != null && !keyword.isEmpty()) {
-            wrapper.and(w -> w.like("name", keyword).or().like("description", keyword));
-        }
-        if (type != null && !type.isEmpty()) {
-            wrapper.eq("type", type);
-        }
-        if (categoryId != null) {
-            wrapper.eq("category_id", categoryId);
-        }
-
-        wrapper.orderByDesc("created_at");
-        Page<Asset> result = page(pageParam, wrapper);
-        return result.getRecords().stream().map(this::entityToDTO).collect(Collectors.toList());
+        // 创建审核记录
+        ApprovalRecord record = new ApprovalRecord();
+        record.setApprovalType("asset");
+        record.setTargetId(id);
+        record.setTargetType(asset.getAssetType());
+        record.setReviewerId(reviewerId);
+        record.setStatus("approved");
+        record.setComment(comment);
+        record.setCreatedAt(LocalDateTime.now());
+        approvalRecordMapper.insert(record);
     }
 
     @Override
     @Transactional
-    public void incrementViewCount(Long assetId) {
-        Asset asset = getById(assetId);
-        if (asset != null) {
-            asset.setViewCount((asset.getViewCount() == null ? 0 : asset.getViewCount()) + 1);
-            updateById(asset);
+    public void reject(Long id, Long reviewerId, String comment) {
+        Asset asset = assetMapper.selectById(id);
+        if (asset == null) {
+            throw new BusinessException("资产不存在");
+        }
+        if (!"pending_review".equals(asset.getStatus())) {
+            throw new BusinessException("当前状态不需要审核");
+        }
+
+        asset.setStatus("rejected");
+        asset.setUpdatedAt(LocalDateTime.now());
+        assetMapper.updateById(asset);
+
+        // 创建审核记录
+        ApprovalRecord record = new ApprovalRecord();
+        record.setApprovalType("asset");
+        record.setTargetId(id);
+        record.setTargetType(asset.getAssetType());
+        record.setReviewerId(reviewerId);
+        record.setStatus("rejected");
+        record.setComment(comment);
+        record.setCreatedAt(LocalDateTime.now());
+        approvalRecordMapper.insert(record);
+    }
+
+    @Override
+    public void offline(Long id, Long userId) {
+        Asset asset = assetMapper.selectById(id);
+        if (asset == null) {
+            throw new BusinessException("资产不存在");
+        }
+        if (!asset.getCreatedBy().equals(userId)) {
+            throw new BusinessException("无权操作此资产");
+        }
+
+        asset.setStatus("offline");
+        asset.setUpdatedAt(LocalDateTime.now());
+        assetMapper.updateById(asset);
+    }
+
+    @Override
+    public void deleteAsset(Long id, Long userId) {
+        Asset asset = assetMapper.selectById(id);
+        if (asset == null) {
+            throw new BusinessException("资产不存在");
+        }
+        if (!asset.getCreatedBy().equals(userId)) {
+            throw new BusinessException("无权删除此资产");
+        }
+
+        // 删除关联的版本
+        assetVersionMapper.delete(
+            new LambdaQueryWrapper<AssetVersion>()
+                .eq(AssetVersion::getAssetId, id)
+        );
+
+        // 删除资产
+        assetMapper.deleteById(id);
+    }
+
+    @Override
+    public void incrementViewCount(Long versionId) {
+        AssetVersion version = assetVersionMapper.selectById(versionId);
+        if (version != null) {
+            version.setViewCount(version.getViewCount() + 1);
+            assetVersionMapper.updateById(version);
         }
     }
 
     @Override
-    @Transactional
-    public void incrementDownloadCount(Long assetId) {
-        Asset asset = getById(assetId);
-        if (asset != null) {
-            asset.setDownloadCount((asset.getDownloadCount() == null ? 0 : asset.getDownloadCount()) + 1);
-            updateById(asset);
+    public void incrementDownloadCount(Long versionId) {
+        AssetVersion version = assetVersionMapper.selectById(versionId);
+        if (version != null) {
+            version.setDownloadCount(version.getDownloadCount() + 1);
+            assetVersionMapper.updateById(version);
         }
     }
 
-    @Override
-    @Transactional
-    public void deleteAsset(Long assetId) {
-        removeById(assetId);
-    }
-
-    @Override
-    public List<AssetVersion> getAssetVersions(Long assetId) {
-        return assetVersionMapper.findByAssetId(assetId);
-    }
-
-    private AssetDTO entityToDTO(Asset asset) {
+    private AssetDTO toDTO(Asset asset) {
         AssetDTO dto = new AssetDTO();
         BeanUtils.copyProperties(asset, dto);
 
-        // Load category name
+        // 获取分类名称
         if (asset.getCategoryId() != null) {
-            com.aimarketplace.entity.Category category = categoryMapper.selectById(asset.getCategoryId());
+            Category category = categoryMapper.selectById(asset.getCategoryId());
             if (category != null) {
                 dto.setCategoryName(category.getName());
             }
         }
 
-        // Load creator name
+        // 获取创建者名称
         if (asset.getCreatedBy() != null) {
             User user = userMapper.selectById(asset.getCreatedBy());
             if (user != null) {
-                dto.setCreatorName(user.getUsername());
+                dto.setCreatedBy(user.getUsername());
             }
         }
 
-        // Load approver name
-        if (asset.getApprovedBy() != null) {
-            User user = userMapper.selectById(asset.getApprovedBy());
-            if (user != null) {
-                dto.setApproverName(user.getUsername());
-            }
+        if (asset.getCreatedAt() != null) {
+            dto.setCreatedAt(asset.getCreatedAt().toString());
+        }
+        if (asset.getUpdatedAt() != null) {
+            dto.setUpdatedAt(asset.getUpdatedAt().toString());
         }
 
-        // Get rejection reason from approval record
-        if ("rejected".equals(asset.getStatus())) {
-            QueryWrapper<com.aimarketplace.entity.ApprovalRecord> wrapper = new QueryWrapper<>();
-            wrapper.eq("asset_id", asset.getId());
-            wrapper.eq("action", "reject");
-            wrapper.orderByDesc("created_at");
-            wrapper.last("LIMIT 1");
-            com.aimarketplace.entity.ApprovalRecord record = approvalRecordMapper.selectOne(wrapper);
-            if (record != null) {
-                dto.setRejectionReason(record.getComment());
-            }
-        }
+        return dto;
+    }
 
+    private AssetVersionDTO toVersionDTO(AssetVersion version) {
+        AssetVersionDTO dto = new AssetVersionDTO();
+        BeanUtils.copyProperties(version, dto);
+        if (version.getCreatedAt() != null) {
+            dto.setCreatedAt(version.getCreatedAt().toString());
+        }
         return dto;
     }
 }

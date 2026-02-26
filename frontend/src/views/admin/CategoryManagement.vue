@@ -3,221 +3,142 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <h3>Category Management</h3>
-          <el-button type="primary" @click="showCreateDialog">New Category</el-button>
+          <h2>分类管理</h2>
+          <el-button type="primary" @click="showDialog()">添加分类</el-button>
         </div>
       </template>
 
-      <el-table :data="categories" v-loading="loading" stripe row-key="id" default-expand-all>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="Name" />
-        <el-table-column prop="description" label="Description" />
-        <el-table-column prop="icon" label="Icon" width="100" />
-        <el-table-column prop="sortOrder" label="Order" width="80" />
-        <el-table-column prop="status" label="Status" width="100">
+      <el-table :data="categories" v-loading="loading">
+        <el-table-column prop="name" label="名称" />
+        <el-table-column prop="assetType" label="类型" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-              {{ row.status === 'active' ? 'Active' : 'Inactive' }}
+            <el-tag :type="row.assetType === 'llm' ? 'primary' : 'success'">
+              {{ row.assetType === 'llm' ? 'LLM' : 'Skill' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="assetCount" label="Assets" width="80" />
-        <el-table-column label="Actions" width="200">
+        <el-table-column prop="sortOrder" label="排序" width="100" />
+        <el-table-column label="操作" width="150">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="editCategory(row)">Edit</el-button>
-            <el-button type="success" size="small" @click="moveUp(row)">Up</el-button>
-            <el-button type="warning" size="small" @click="moveDown(row)">Down</el-button>
-            <el-button type="danger" size="small" @click="deleteCategory(row)">Delete</el-button>
+            <el-button text type="primary" @click="showDialog(row)">编辑</el-button>
+            <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="editMode ? 'Edit Category' : 'New Category'"
-      width="500px"
-    >
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
-        <el-form-item label="Name" prop="name">
-          <el-input v-model="form.name" placeholder="Enter category name" />
+    <el-dialog v-model="dialogVisible" :title="editingCategory ? '编辑分类' : '添加分类'" width="400px">
+      <el-form :model="form" label-position="top">
+        <el-form-item label="名称">
+          <el-input v-model="form.name" />
         </el-form-item>
-        <el-form-item label="Description">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            placeholder="Enter description"
-          />
-        </el-form-item>
-        <el-form-item label="Icon">
-          <el-input v-model="form.icon" placeholder="Enter icon name" />
-        </el-form-item>
-        <el-form-item label="Parent">
-          <el-select v-model="form.parentId" clearable placeholder="None">
-            <el-option
-              v-for="cat in parentCategories"
-              :key="cat.id"
-              :label="cat.name"
-              :value="cat.id"
-            />
+        <el-form-item label="类型">
+          <el-select v-model="form.assetType">
+            <el-option label="LLM" value="llm" />
+            <el-option label="Skill" value="skill" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Sort Order">
+        <el-form-item label="排序">
           <el-input-number v-model="form.sortOrder" :min="0" />
-        </el-form-item>
-        <el-form-item label="Status">
-          <el-radio-group v-model="form.status">
-            <el-radio label="active">Active</el-radio>
-            <el-radio label="inactive">Inactive</el-radio>
-          </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">Cancel</el-button>
-        <el-button type="primary" @click="submitForm">Save</el-button>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
-import { adminApi } from '@/api/admin'
-import type { Category } from '@/api/admin'
+import request from '@/api/request'
 
+const categories = ref<any[]>([])
 const loading = ref(false)
-const categories = ref<Category[]>([])
 const dialogVisible = ref(false)
-const editMode = ref(false)
-const formRef = ref<FormInstance>()
-const editingId = ref<number | null>(null)
+const editingCategory = ref<any>(null)
+const saving = ref(false)
 
 const form = reactive({
   name: '',
-  description: '',
-  icon: '',
-  parentId: undefined as number | undefined,
-  sortOrder: 0,
-  status: 'active'
+  assetType: 'llm',
+  sortOrder: 0
 })
 
-const rules: FormRules = {
-  name: [{ required: true, message: 'Please enter name', trigger: 'blur' }]
-}
-
-const parentCategories = computed(() => {
-  return categories.value.filter(c => c.id !== editingId.value)
-})
-
-onMounted(() => {
-  loadCategories()
-})
-
-async function loadCategories() {
+const fetchCategories = async () => {
   loading.value = true
   try {
-    categories.value = await adminApi.getCategoryTree()
+    const res = await request.get<any, any>('/categories')
+    if (res.code === 200) {
+      categories.value = res.data
+    }
   } catch (error) {
-    console.error('Failed to load categories:', error)
+    console.error('获取分类列表失败', error)
   } finally {
     loading.value = false
   }
 }
 
-function showCreateDialog() {
-  editMode.value = false
-  editingId.value = null
-  Object.assign(form, {
-    name: '',
-    description: '',
-    icon: '',
-    parentId: undefined,
-    sortOrder: 0,
-    status: 'active'
-  })
+const showDialog = (category?: any) => {
+  editingCategory.value = category || null
+  if (category) {
+    Object.assign(form, category)
+  } else {
+    Object.assign(form, { name: '', assetType: 'llm', sortOrder: 0 })
+  }
   dialogVisible.value = true
 }
 
-function editCategory(category: Category) {
-  editMode.value = true
-  editingId.value = category.id
-  Object.assign(form, category)
-  dialogVisible.value = true
-}
-
-async function submitForm() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (valid) {
-      try {
-        if (editMode.value && editingId.value) {
-          await adminApi.updateCategory(editingId.value, form)
-          ElMessage.success('Category updated')
-        } else {
-          await adminApi.createCategory(form)
-          ElMessage.success('Category created')
-        }
-        dialogVisible.value = false
-        await loadCategories()
-      } catch (error: any) {
-        ElMessage.error(error.response?.data?.message || 'Operation failed')
-      }
-    }
-  })
-}
-
-async function deleteCategory(category: Category) {
-  if (category.assetCount && category.assetCount > 0) {
-    ElMessage.warning('Cannot delete category with assets')
-    return
-  }
-
+const handleSave = async () => {
+  saving.value = true
   try {
-    await ElMessageBox.confirm('Are you sure to delete this category?', 'Warning', {
-      type: 'warning'
-    })
-    await adminApi.deleteCategory(category.id)
-    ElMessage.success('Category deleted')
-    await loadCategories()
-  } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || 'Delete failed')
+    if (editingCategory.value) {
+      await request.put(`/categories/admin/${editingCategory.value.id}`, form)
+      ElMessage.success('更新成功')
+    } else {
+      await request.post('/categories/admin', form)
+      ElMessage.success('添加成功')
     }
-  }
-}
-
-async function moveUp(category: Category) {
-  if (category.sortOrder > 0) {
-    try {
-      await adminApi.updateCategorySort(category.id, category.sortOrder - 1)
-      await loadCategories()
-    } catch (error) {
-      ElMessage.error('Update failed')
-    }
-  }
-}
-
-async function moveDown(category: Category) {
-  try {
-    await adminApi.updateCategorySort(category.id, category.sortOrder + 1)
-    await loadCategories()
+    dialogVisible.value = false
+    fetchCategories()
   } catch (error) {
-    ElMessage.error('Update failed')
+    ElMessage.error('操作失败')
+  } finally {
+    saving.value = false
   }
 }
+
+const handleDelete = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要删除吗？', '警告', { type: 'warning' })
+    await request.delete(`/categories/admin/${row.id}`)
+    ElMessage.success('删除成功')
+    fetchCategories()
+  } catch (error) {
+    // cancelled
+  }
+}
+
+onMounted(() => {
+  fetchCategories()
+})
 </script>
 
 <style scoped>
+.category-management {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.card-header h3 {
+.card-header h2 {
   margin: 0;
 }
 </style>

@@ -1,130 +1,200 @@
 package com.aimarketplace.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.aimarketplace.dto.LlmModelConfigDTO;
-import com.aimarketplace.dto.LlmModelConfigRequest;
-import com.aimarketplace.entity.LlmModel;
+import com.aimarketplace.common.BusinessException;
+import com.aimarketplace.dto.LlmModelDTO;
+import com.aimarketplace.dto.LlmTestRequest;
+import com.aimarketplace.dto.LlmTestResponse;
+import com.aimarketplace.entity.Category;
 import com.aimarketplace.entity.LlmModelConfig;
+import com.aimarketplace.mapper.CategoryMapper;
 import com.aimarketplace.mapper.LlmModelConfigMapper;
-import com.aimarketplace.mapper.LlmModelMapper;
 import com.aimarketplace.service.LlmModelConfigService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * LLM Model Config Service Implementation
- */
+@Slf4j
 @Service
-public class LlmModelConfigServiceImpl extends ServiceImpl<LlmModelConfigMapper, LlmModelConfig> implements LlmModelConfigService {
+public class LlmModelConfigServiceImpl implements LlmModelConfigService {
 
     @Autowired
-    private LlmModelMapper llmModelMapper;
+    private LlmModelConfigMapper modelConfigMapper;
+
+    @Autowired
+    private CategoryMapper categoryMapper;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
-    @Transactional
-    public LlmModelConfigDTO upsertConfig(LlmModelConfigRequest request) {
-        // Check if model exists
-        LlmModel model = llmModelMapper.selectById(request.getLlmModelId());
-        if (model == null) {
-            throw new RuntimeException("LLM Model not found");
+    public List<LlmModelDTO> getActiveModels() {
+        List<LlmModelConfig> models = modelConfigMapper.selectList(
+            new LambdaQueryWrapper<LlmModelConfig>()
+                .eq(LlmModelConfig::getStatus, "active")
+                .orderByAsc(LlmModelConfig::getId)
+        );
+
+        return models.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<LlmModelDTO> getAllModels() {
+        List<LlmModelConfig> models = modelConfigMapper.selectList(
+            new LambdaQueryWrapper<LlmModelConfig>()
+                .orderByAsc(LlmModelConfig::getId)
+        );
+
+        return models.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public LlmModelDTO getModelById(Long id) {
+        LlmModelConfig config = modelConfigMapper.selectById(id);
+        if (config == null) {
+            throw new BusinessException("模型配置不存在");
+        }
+        return toDTO(config);
+    }
+
+    @Override
+    public LlmTestResponse testModel(LlmTestRequest request) {
+        LlmModelConfig config = modelConfigMapper.selectById(request.getModelConfigId());
+        if (config == null) {
+            throw new BusinessException("模型配置不存在");
         }
 
-        // Check if config already exists
-        LlmModelConfig existing = baseMapper.findByModelIdAndKey(request.getLlmModelId(), request.getConfigKey());
+        long startTime = System.currentTimeMillis();
 
-        if (existing != null) {
-            // Update existing
-            existing.setConfigValue(request.getConfigValue());
-            existing.setConfigType(request.getConfigType());
-            existing.setIsEncrypted(request.getIsEncrypted());
-            existing.setUpdatedAt(LocalDateTime.now());
-            updateById(existing);
-            return entityToDTO(existing);
-        } else {
-            // Create new
-            LlmModelConfig config = new LlmModelConfig();
-            config.setLlmModelId(request.getLlmModelId());
-            config.setConfigKey(request.getConfigKey());
-            config.setConfigValue(request.getConfigValue());
-            config.setConfigType(request.getConfigType());
-            config.setIsEncrypted(request.getIsEncrypted());
-            config.setCreatedAt(LocalDateTime.now());
-            config.setUpdatedAt(LocalDateTime.now());
-            save(config);
-            return entityToDTO(config);
+        try {
+            // 构建 OpenAI 兼容的请求
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", config.getModelName());
+            requestBody.put("messages", List.of(
+                Map.of("role", "user", "content", request.getPrompt())
+            ));
+
+            // 合并默认参数
+            if (config.getDefaultParams() != null) {
+                requestBody.putAll(config.getDefaultParams());
+            }
+            if (request.getParameters() != null) {
+                requestBody.putAll(request.getParameters());
+            }
+
+            // 设置请求头
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            String url = config.getApiEndpoint();
+            if (!url.endsWith("/")) {
+                url += "/";
+            }
+            url += "chat/completions";
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            // 发送请求
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url,
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+            long responseTime = System.currentTimeMillis() - startTime;
+
+            // 解析响应
+            LlmTestResponse testResponse = new LlmTestResponse();
+            testResponse.setResponseTime((int) responseTime);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> body = response.getBody();
+
+                // 提取内容
+                if (body.containsKey("choices")) {
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) body.get("choices");
+                    if (!choices.isEmpty()) {
+                        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                        if (message != null) {
+                            testResponse.setResponse((String) message.get("content"));
+                        }
+                    }
+                }
+
+                // 提取 token 使用量
+                if (body.containsKey("usage")) {
+                    Map<String, Object> usage = (Map<String, Object>) body.get("usage");
+                    testResponse.setPromptTokens((Integer) usage.getOrDefault("prompt_tokens", 0));
+                    testResponse.setCompletionTokens((Integer) usage.getOrDefault("completion_tokens", 0));
+                    testResponse.setTotalTokens((Integer) usage.getOrDefault("total_tokens", 0));
+                }
+            }
+
+            return testResponse;
+
+        } catch (Exception e) {
+            log.error("LLM 测试失败: {}", e.getMessage(), e);
+            throw new BusinessException("模型调用失败: " + e.getMessage());
         }
     }
 
     @Override
-    public List<LlmModelConfigDTO> getConfigsByModelId(Long modelId) {
-        List<LlmModelConfig> configs = baseMapper.findByModelId(modelId);
-        return configs.stream().map(this::entityToDTO).collect(Collectors.toList());
+    public Long createModel(LlmModelConfig config) {
+        config.setCreatedAt(LocalDateTime.now());
+        config.setUpdatedAt(LocalDateTime.now());
+        config.setStatus("active");
+        modelConfigMapper.insert(config);
+        return config.getId();
     }
 
     @Override
-    public List<LlmModelConfigDTO> getPublicConfigsByModelId(Long modelId) {
-        List<LlmModelConfig> configs = baseMapper.findPublicByModelId(modelId);
-        return configs.stream().map(this::entityToDTO).collect(Collectors.toList());
-    }
-
-    @Override
-    public LlmModelConfigDTO getConfigByKey(Long modelId, String key) {
-        LlmModelConfig config = baseMapper.findByModelIdAndKey(modelId, key);
-        return config != null ? entityToDTO(config) : null;
-    }
-
-    @Override
-    @Transactional
-    public void deleteConfig(Long id) {
-        removeById(id);
-    }
-
-    @Override
-    @Transactional
-    public List<LlmModelConfigDTO> bulkUpdateConfigs(Long modelId, List<LlmModelConfigRequest> requests) {
-        // Check if model exists
-        LlmModel model = llmModelMapper.selectById(modelId);
-        if (model == null) {
-            throw new RuntimeException("LLM Model not found");
+    public void updateModel(Long id, LlmModelConfig config) {
+        LlmModelConfig existing = modelConfigMapper.selectById(id);
+        if (existing == null) {
+            throw new BusinessException("模型配置不存在");
         }
 
-        List<LlmModelConfigDTO> results = new ArrayList<>();
-
-        for (LlmModelConfigRequest request : requests) {
-            request.setLlmModelId(modelId);
-            LlmModelConfigDTO dto = upsertConfig(request);
-            results.add(dto);
-        }
-
-        return results;
+        config.setId(id);
+        config.setUpdatedAt(LocalDateTime.now());
+        modelConfigMapper.updateById(config);
     }
 
-    private LlmModelConfigDTO entityToDTO(LlmModelConfig config) {
-        LlmModelConfigDTO dto = new LlmModelConfigDTO();
+    @Override
+    public void deleteModel(Long id) {
+        LlmModelConfig existing = modelConfigMapper.selectById(id);
+        if (existing == null) {
+            throw new BusinessException("模型配置不存在");
+        }
+
+        // 软删除：设置状态为 inactive
+        existing.setStatus("inactive");
+        existing.setUpdatedAt(LocalDateTime.now());
+        modelConfigMapper.updateById(existing);
+    }
+
+    private LlmModelDTO toDTO(LlmModelConfig config) {
+        LlmModelDTO dto = new LlmModelDTO();
         BeanUtils.copyProperties(config, dto);
 
-        // Format timestamps
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        if (config.getCreatedAt() != null) {
-            dto.setCreatedAt(config.getCreatedAt().format(formatter));
-        }
-        if (config.getUpdatedAt() != null) {
-            dto.setUpdatedAt(config.getUpdatedAt().format(formatter));
+        // 获取分类名称
+        if (config.getCategoryId() != null) {
+            Category category = categoryMapper.selectById(config.getCategoryId());
+            if (category != null) {
+                dto.setCategoryName(category.getName());
+            }
         }
 
-        // Load model name
-        LlmModel model = llmModelMapper.selectById(config.getLlmModelId());
-        if (model != null) {
-            dto.setModelName(model.getName());
+        if (config.getCreatedAt() != null) {
+            dto.setCreatedAt(config.getCreatedAt().toString());
         }
 
         return dto;

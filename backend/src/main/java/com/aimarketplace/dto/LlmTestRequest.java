@@ -1,12 +1,11 @@
 package com.aimarketplace.dto;
 
 import lombok.Data;
+import java.util.Map;
 
 @Data
 public class LlmTestRequest {
-    private Long modelId;
+    private Long modelConfigId;
     private String prompt;
-    private Double temperature;
-    private Integer maxTokens;
-    private Double topP;
+    private Map<String, Object> parameters;
 }

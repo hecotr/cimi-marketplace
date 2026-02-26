@@ -1,91 +1,105 @@
 package com.aimarketplace.controller;
 
 import com.aimarketplace.common.Result;
+import com.aimarketplace.dto.InteractionRequest;
+import com.aimarketplace.dto.LikeRequest;
 import com.aimarketplace.service.InteractionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
-import jakarta.validation.constraints.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- * Interaction Controller
- */
 @RestController
-@RequestMapping("/api/interaction")
+@RequestMapping("/api/interactions")
 public class InteractionController {
 
     @Autowired
     private InteractionService interactionService;
 
+    /**
+     * 收藏资产
+     */
     @PostMapping("/favorite")
-    public Result<Void> toggleFavorite(@RequestBody FavoriteRequest request) {
-        interactionService.addFavorite(request.getUserId(), request.getAssetId(), request.getAssetType());
+    public Result<Void> addFavorite(
+            HttpServletRequest request,
+            @Valid @RequestBody InteractionRequest body) {
+        Long userId = (Long) request.getAttribute("userId");
+        interactionService.addFavorite(userId, body.getAssetId(), body.getAssetType());
         return Result.success();
     }
 
+    /**
+     * 取消收藏
+     */
     @DeleteMapping("/favorite")
-    public Result<Void> removeFavorite(@RequestParam Long assetId, @RequestParam String assetType) {
-        interactionService.removeFavorite(getCurrentUserId(), assetId, assetType);
+    public Result<Void> removeFavorite(
+            HttpServletRequest request,
+            @RequestParam Long assetId,
+            @RequestParam String assetType) {
+        Long userId = (Long) request.getAttribute("userId");
+        interactionService.removeFavorite(userId, assetId, assetType);
         return Result.success();
     }
 
-    @GetMapping("/favorites")
-    public Result<List<?>> getFavorites(
-            @RequestParam(required = false) String assetType,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        List<?> favorites = interactionService.getUserFavorites(getCurrentUserId(), assetType, page, size);
-        return Result.success(favorites);
+    /**
+     * 检查收藏状态
+     */
+    @GetMapping("/favorite/check")
+    public Result<Map<String, Boolean>> checkFavorite(
+            HttpServletRequest request,
+            @RequestParam Long assetId,
+            @RequestParam String assetType) {
+        Long userId = (Long) request.getAttribute("userId");
+        boolean isFavorited = interactionService.isFavorited(userId, assetId, assetType);
+
+        Map<String, Boolean> result = new HashMap<>();
+        result.put("isFavorited", isFavorited);
+        return Result.success(result);
     }
 
+    /**
+     * 点赞
+     */
     @PostMapping("/like")
-    public Result<Boolean> toggleLike(@RequestBody LikeRequest request) {
-        boolean liked = interactionService.toggleLike(request.getUserId(), request.getAssetId(), request.getAssetType());
-        return Result.success(liked);
+    public Result<Void> addLike(
+            HttpServletRequest request,
+            @Valid @RequestBody LikeRequest body) {
+        Long userId = (Long) request.getAttribute("userId");
+        interactionService.addLike(userId, body.getAssetId(), body.getAssetType(), body.getVersionId());
+        return Result.success();
     }
 
-    @GetMapping("/liked")
-    public Result<Boolean> isLiked(@RequestParam Long assetId, @RequestParam String assetType) {
-        boolean liked = interactionService.isLiked(getCurrentUserId(), assetId, assetType);
-        return Result.success(liked);
+    /**
+     * 取消点赞
+     */
+    @DeleteMapping("/like")
+    public Result<Void> removeLike(
+            HttpServletRequest request,
+            @RequestParam Long assetId,
+            @RequestParam String assetType,
+            @RequestParam(required = false) Long versionId) {
+        Long userId = (Long) request.getAttribute("userId");
+        interactionService.removeLike(userId, assetId, assetType, versionId);
+        return Result.success();
     }
 
-    @GetMapping("/favorited")
-    public Result<Boolean> isFavorited(@RequestParam Long assetId, @RequestParam String assetType) {
-        boolean favorited = interactionService.isFavorited(getCurrentUserId(), assetId, assetType);
-        return Result.success(favorited);
-    }
+    /**
+     * 检查点赞状态
+     */
+    @GetMapping("/like/check")
+    public Result<Map<String, Boolean>> checkLike(
+            HttpServletRequest request,
+            @RequestParam Long assetId,
+            @RequestParam String assetType,
+            @RequestParam(required = false) Long versionId) {
+        Long userId = (Long) request.getAttribute("userId");
+        boolean isLiked = interactionService.isLiked(userId, assetId, assetType, versionId);
 
-    private Long getCurrentUserId() {
-        // Get user ID from authentication context
-        // This is a simplified version - in production, extract from JWT token
-        return 1L;
-    }
-
-    static class FavoriteRequest {
-        private Long userId;
-        private Long assetId;
-        private String assetType;
-
-        public Long getUserId() { return userId; }
-        public void setUserId(Long userId) { this.userId = userId; }
-        public Long getAssetId() { return assetId; }
-        public void setAssetId(Long assetId) { this.assetId = assetId; }
-        public String getAssetType() { return assetType; }
-        public void setAssetType(String assetType) { this.assetType = assetType; }
-    }
-
-    static class LikeRequest {
-        private Long userId;
-        private Long assetId;
-        private String assetType;
-
-        public Long getUserId() { return userId; }
-        public void setUserId(Long userId) { this.userId = userId; }
-        public Long getAssetId() { return assetId; }
-        public void setAssetId(Long assetId) { this.assetId = assetId; }
-        public String getAssetType() { return assetType; }
-        public void setAssetType(String assetType) { this.assetType = assetType; }
+        Map<String, Boolean> result = new HashMap<>();
+        result.put("isLiked", isLiked);
+        return Result.success(result);
     }
 }

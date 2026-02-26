@@ -1,114 +1,137 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
-
-const routes: RouteRecordRaw[] = [
-  {
-    path: '/',
-    redirect: '/llm/models'
-  },
-  {
-    path: '/llm',
-    name: 'LlmIndex',
-    redirect: '/llm/models',
-    children: [
-      {
-        path: 'models',
-        name: 'LlmModels',
-        component: () => import('@/views/llm/ModelList.vue')
-      },
-      {
-        path: 'models/:id',
-        name: 'LlmModelDetail',
-        component: () => import('@/views/llm/ModelDetail.vue')
-      },
-      {
-        path: 'my-keys',
-        name: 'MyKeys',
-        component: () => import('@/views/llm/MyKeys.vue')
-      }
-    ]
-  },
-  {
-    path: '/skills',
-    name: 'SkillsIndex',
-    redirect: '/skills/list',
-    children: [
-      {
-        path: 'list',
-        name: 'SkillsList',
-        component: () => import('@/views/skills/SkillList.vue')
-      },
-      {
-        path: ':id',
-        name: 'SkillDetail',
-        component: () => import('@/views/skills/SkillDetail.vue')
-      }
-    ]
-  },
-  {
-    path: '/favorites',
-    name: 'Favorites',
-    component: () => import('@/views/Favorites.vue')
-  },
-  {
-    path: '/publish',
-    name: 'PublishAsset',
-    component: () => import('@/views/asset/PublishAsset.vue')
-  },
-  {
-    path: '/asset/:id/edit',
-    name: 'EditAsset',
-    component: () => import('@/views/asset/EditAsset.vue')
-  },
-  {
-    path: '/my/drafts',
-    name: 'MyDrafts',
-    component: () => import('@/views/asset/MyDrafts.vue')
-  },
-  {
-    path: '/my/assets',
-    name: 'MyPublished',
-    component: () => import('@/views/asset/MyPublished.vue')
-  },
-  {
-    path: '/admin',
-    component: () => import('@/layouts/AdminLayout.vue'),
-    children: [
-      {
-        path: '',
-        redirect: '/admin/dashboard'
-      },
-      {
-        path: 'dashboard',
-        name: 'AdminDashboard',
-        component: () => import('@/views/admin/Statistics.vue')
-      },
-      {
-        path: 'assets',
-        name: 'AdminAssets',
-        component: () => import('@/views/admin/AssetManagement.vue')
-      },
-      {
-        path: 'approval',
-        name: 'AdminApproval',
-        component: () => import('@/views/admin/ReviewQueue.vue')
-      },
-      {
-        path: 'categories',
-        name: 'AdminCategories',
-        component: () => import('@/views/admin/CategoryManagement.vue')
-      },
-      {
-        path: 'llm-config',
-        name: 'AdminLlmConfig',
-        component: () => import('@/views/admin/LLMConfig.vue')
-      }
-    ]
-  }
-]
+import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes: [
+    {
+      path: '/',
+      redirect: '/llm'
+    },
+    {
+      path: '/login',
+      component: () => import('@/views/Login.vue'),
+      meta: { guest: true }
+    },
+    {
+      path: '/',
+      component: () => import('@/layouts/MainLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'llm',
+          component: () => import('@/views/llm/ModelList.vue'),
+          meta: { title: 'LLM 模型' }
+        },
+        {
+          path: 'llm/:id',
+          component: () => import('@/views/llm/ModelDetail.vue'),
+          meta: { title: '模型详情' }
+        },
+        {
+          path: 'skills',
+          component: () => import('@/views/skills/SkillList.vue'),
+          meta: { title: 'Skills' }
+        },
+        {
+          path: 'skills/:id',
+          component: () => import('@/views/skills/SkillDetail.vue'),
+          meta: { title: 'Skill 详情' }
+        },
+        {
+          path: 'skills/publish',
+          component: () => import('@/views/skills/PublishSkill.vue'),
+          meta: { title: '发布 Skill' }
+        },
+        {
+          path: 'my/drafts',
+          component: () => import('@/views/my/Drafts.vue'),
+          meta: { title: '我的草稿' }
+        },
+        {
+          path: 'my/published',
+          component: () => import('@/views/my/Published.vue'),
+          meta: { title: '我的发布' }
+        },
+        {
+          path: 'favorites',
+          component: () => import('@/views/Favorites.vue'),
+          meta: { title: '我的收藏' }
+        },
+        {
+          path: 'my-keys',
+          component: () => import('@/views/llm/MyKeys.vue'),
+          meta: { title: '我的 Keys' }
+        }
+      ]
+    },
+    {
+      path: '/admin',
+      component: () => import('@/layouts/AdminLayout.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          redirect: '/admin/models'
+        },
+        {
+          path: 'models',
+          component: () => import('@/views/admin/ModelManagement.vue'),
+          meta: { title: '模型管理' }
+        },
+        {
+          path: 'categories',
+          component: () => import('@/views/admin/CategoryManagement.vue'),
+          meta: { title: '分类管理' }
+        },
+        {
+          path: 'review',
+          component: () => import('@/views/admin/ReviewQueue.vue'),
+          meta: { title: '资产审核' }
+        },
+        {
+          path: 'api-keys',
+          component: () => import('@/views/admin/ApiKeyReview.vue'),
+          meta: { title: 'Key 审批' }
+        },
+        {
+          path: 'statistics',
+          component: () => import('@/views/admin/Statistics.vue'),
+          meta: { title: '统计报表' }
+        }
+      ]
+    }
+  ]
+})
+
+// 路由守卫
+router.beforeEach(async (to, _from, next) => {
+  const userStore = useUserStore()
+
+  // 如果有 sessionId 但没有用户信息，尝试获取
+  if (localStorage.getItem('sessionId') && !userStore.isLoggedIn) {
+    await userStore.fetchUserInfo()
+  }
+
+  // 需要登录的页面
+  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // 需要管理员权限的页面
+  if (to.meta.requiresAdmin && !userStore.isAdmin()) {
+    next({ path: '/' })
+    return
+  }
+
+  // 已登录用户不能访问登录页
+  if (to.meta.guest && userStore.isLoggedIn) {
+    next({ path: '/' })
+    return
+  }
+
+  next()
 })
 
 export default router

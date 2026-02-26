@@ -1,53 +1,39 @@
 package com.aimarketplace.service;
 
 import com.aimarketplace.dto.CategoryDTO;
-import com.aimarketplace.dto.CategoryRequest;
-import com.baomidou.mybatisplus.extension.service.IService;
+import com.aimarketplace.entity.Category;
 
 import java.util.List;
 
-/**
- * Category Service Interface
- */
-public interface CategoryService extends IService<com.aimarketplace.entity.Category> {
+public interface CategoryService {
 
     /**
-     * Create a category
+     * 根据资产类型获取分类列表
      */
-    CategoryDTO createCategory(CategoryRequest request);
+    List<CategoryDTO> getCategoriesByType(String assetType);
 
     /**
-     * Update a category
+     * 获取所有分类
      */
-    CategoryDTO updateCategory(Long id, CategoryRequest request);
+    List<CategoryDTO> getAllCategories();
 
     /**
-     * Delete a category
-     */
-    void deleteCategory(Long id);
-
-    /**
-     * Get category by ID
+     * 获取分类详情
      */
     CategoryDTO getCategoryById(Long id);
 
     /**
-     * Get all active categories
+     * 创建分类（管理员）
      */
-    List<CategoryDTO> getActiveCategories();
+    Long createCategory(Category category);
 
     /**
-     * Get category tree
+     * 更新分类（管理员）
      */
-    List<CategoryDTO> getCategoryTree();
+    void updateCategory(Long id, Category category);
 
     /**
-     * Get categories by type
+     * 删除分类（管理员）
      */
-    List<CategoryDTO> getCategoriesByStatus(String status);
-
-    /**
-     * Update category sort order
-     */
-    void updateSortOrder(Long id, Integer sortOrder);
+    void deleteCategory(Long id);
 }

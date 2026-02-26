@@ -1,43 +1,33 @@
 package com.aimarketplace.config;
 
-/**
- * Interface for object storage configuration
- * Supports multiple storage backends (MinIO, OSS, S3, etc.)
- */
-public interface ObjectStorageConfig {
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
-    /**
-     * Get storage endpoint URL
-     */
-    String getEndpoint();
+@Data
+@Configuration
+@ConfigurationProperties(prefix = "storage")
+public class ObjectStorageConfig {
 
-    /**
-     * Get storage access key
-     */
-    String getAccessKey();
+    private String type = "minio"; // minio or s3
 
-    /**
-     * Get storage secret key
-     */
-    String getSecretKey();
+    private MinioConfig minio = new MinioConfig();
+    private S3Config s3 = new S3Config();
 
-    /**
-     * Get default bucket name
-     */
-    String getBucketName();
+    @Data
+    public static class MinioConfig {
+        private String endpoint;
+        private String accessKey;
+        private String secretKey;
+        private String bucket;
+    }
 
-    /**
-     * Get storage type (minio, oss, s3, local)
-     */
-    String getStorageType();
-
-    /**
-     * Get public URL base for accessing files
-     */
-    String getPublicUrlBase();
-
-    /**
-     * Check if storage is enabled
-     */
-    boolean isEnabled();
+    @Data
+    public static class S3Config {
+        private String endpoint;
+        private String accessKey;
+        private String secretKey;
+        private String bucket;
+        private String region;
+    }
 }

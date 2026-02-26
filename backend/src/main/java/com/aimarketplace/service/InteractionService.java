@@ -1,51 +1,41 @@
 package com.aimarketplace.service;
 
-import com.aimarketplace.dto.AssetDTO;
-
 import java.util.List;
 
-/**
- * Interaction Service Interface
- */
 public interface InteractionService {
 
     /**
-     * Add favorite
+     * 收藏资产
      */
     void addFavorite(Long userId, Long assetId, String assetType);
 
     /**
-     * Remove favorite
+     * 取消收藏
      */
     void removeFavorite(Long userId, Long assetId, String assetType);
 
     /**
-     * Check if asset is favorited by user
+     * 检查是否已收藏
      */
     boolean isFavorited(Long userId, Long assetId, String assetType);
 
     /**
-     * Get user's favorites
+     * 获取用户收藏的资产ID列表
      */
-    List<AssetDTO> getUserFavorites(Long userId, String assetType, int page, int size);
+    List<Long> getFavoriteAssetIds(Long userId, String assetType);
 
     /**
-     * Add like
+     * 点赞
      */
-    void addLike(Long userId, Long assetId, String assetType);
+    void addLike(Long userId, Long assetId, String assetType, Long versionId);
 
     /**
-     * Remove like
+     * 取消点赞
      */
-    void removeLike(Long userId, Long assetId, String assetType);
+    void removeLike(Long userId, Long assetId, String assetType, Long versionId);
 
     /**
-     * Check if asset is liked by user
+     * 检查是否已点赞
      */
-    boolean isLiked(Long userId, Long assetId, String assetType);
-
-    /**
-     * Toggle like
-     */
-    boolean toggleLike(Long userId, Long assetId, String assetType);
+    boolean isLiked(Long userId, Long assetId, String assetType, Long versionId);
 }

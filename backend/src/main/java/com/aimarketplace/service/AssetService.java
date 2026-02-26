@@ -2,87 +2,70 @@ package com.aimarketplace.service;
 
 import com.aimarketplace.dto.AssetDTO;
 import com.aimarketplace.dto.AssetPublishRequest;
-import com.baomidou.mybatisplus.extension.service.IService;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import java.util.List;
 
-/**
- * Asset Service Interface
- */
-public interface AssetService extends IService<com.aimarketplace.entity.Asset> {
+public interface AssetService {
 
     /**
-     * Create a new asset (draft)
+     * 获取资产列表（分页）
      */
-    AssetDTO createAsset(AssetPublishRequest request);
+    IPage<AssetDTO> getAssets(String assetType, String status, Long categoryId,
+                               String keyword, int page, int size);
 
     /**
-     * Publish an asset for approval
+     * 获取用户自己的资产
      */
-    AssetDTO publishAsset(Long assetId);
+    List<AssetDTO> getMyAssets(Long userId, String assetType, String status);
 
     /**
-     * Update an existing asset
+     * 获取资产详情
      */
-    AssetDTO updateAsset(Long assetId, AssetPublishRequest request);
+    AssetDTO getAssetById(Long id);
 
     /**
-     * Create a new version of an asset
+     * 发布资产（草稿或提交审核）
      */
-    AssetDTO createVersion(Long assetId, AssetPublishRequest request);
+    Long publishAsset(Long userId, AssetPublishRequest request);
 
     /**
-     * Get asset by ID
+     * 更新资产
      */
-    AssetDTO getAssetById(Long assetId);
+    void updateAsset(Long id, Long userId, AssetPublishRequest request);
 
     /**
-     * Get asset by ID with version
+     * 提交审核
      */
-    AssetDTO getAssetByVersion(Long assetId, String version);
+    void submitForReview(Long id, Long userId);
 
     /**
-     * Get published assets by type
+     * 审核通过（管理员）
      */
-    List<AssetDTO> getPublishedAssets(String type, int page, int size);
+    void approve(Long id, Long reviewerId, String comment);
 
     /**
-     * Get user's assets
+     * 审核拒绝（管理员）
      */
-    List<AssetDTO> getUserAssets(Long userId, int page, int size);
+    void reject(Long id, Long reviewerId, String comment);
 
     /**
-     * Get draft assets
+     * 下架资产
      */
-    List<AssetDTO> getDraftAssets(Long userId);
+    void offline(Long id, Long userId);
 
     /**
-     * Get published assets by user
+     * 删除资产
      */
-    List<AssetDTO> getPublishedAssetsByUser(Long userId);
+    void deleteAsset(Long id, Long userId);
 
     /**
-     * Search assets
+     * 增加浏览量
      */
-    List<AssetDTO> searchAssets(String keyword, String type, Long categoryId, int page, int size);
+    void incrementViewCount(Long versionId);
 
     /**
-     * Increment view count
+     * 增加下载量
      */
-    void incrementViewCount(Long assetId);
-
-    /**
-     * Increment download count
-     */
-    void incrementDownloadCount(Long assetId);
-
-    /**
-     * Delete asset
-     */
-    void deleteAsset(Long assetId);
-
-    /**
-     * Get all versions of an asset
-     */
-    List<com.aimarketplace.entity.AssetVersion> getAssetVersions(Long assetId);
+    void incrementDownloadCount(Long versionId);
 }

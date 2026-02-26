@@ -1,29 +1,31 @@
 package com.aimarketplace.service;
 
-import org.springframework.web.multipart.MultipartFile;
+import java.io.InputStream;
 
-/**
- * Object Storage Service Interface
- */
 public interface ObjectStorageService {
 
     /**
-     * Upload file to object storage
+     * 上传文件
      */
-    String uploadFile(MultipartFile file, String path) throws Exception;
+    void uploadFile(String key, InputStream inputStream, long size, String contentType);
 
     /**
-     * Delete file from object storage
+     * 获取预签名 URL（用于下载）
      */
-    void deleteFile(String path) throws Exception;
+    String getPresignedUrl(String key, int expirySeconds);
 
     /**
-     * Get public URL for a file
+     * 检查文件是否存在
      */
-    String getPublicUrl(String path);
+    boolean fileExists(String key);
 
     /**
-     * Check if file exists
+     * 删除文件
      */
-    boolean fileExists(String path);
+    void deleteFile(String key);
+
+    /**
+     * 获取文件内容
+     */
+    InputStream getFile(String key);
 }

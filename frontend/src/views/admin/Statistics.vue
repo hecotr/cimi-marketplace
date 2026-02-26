@@ -2,248 +2,100 @@
   <div class="statistics">
     <el-row :gutter="20">
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: #1890ff">
-              <el-icon :size="24"><DataLine /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.totalAssets || 0 }}</div>
-              <div class="stat-label">Total Assets</div>
-            </div>
-          </div>
+        <el-card class="stat-card">
+          <div class="stat-value">{{ stats.totalModels }}</div>
+          <div class="stat-label">LLM 模型</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: #52c41a">
-              <el-icon :size="24"><CircleCheck /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.totalPublishedAssets || 0 }}</div>
-              <div class="stat-label">Published</div>
-            </div>
-          </div>
+        <el-card class="stat-card">
+          <div class="stat-value">{{ stats.totalSkills }}</div>
+          <div class="stat-label">Skills</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: #faad14">
-              <el-icon :size="24"><Clock /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.pendingApprovals || 0 }}</div>
-              <div class="stat-label">Pending Approval</div>
-            </div>
-          </div>
+        <el-card class="stat-card">
+          <div class="stat-value">{{ stats.totalUsers }}</div>
+          <div class="stat-label">用户数</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: #722ed1">
-              <el-icon :size="24"><User /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.totalUsers || 0 }}</div>
-              <div class="stat-label">Total Users</div>
-            </div>
-          </div>
+        <el-card class="stat-card">
+          <div class="stat-value">{{ stats.pendingReview }}</div>
+          <div class="stat-label">待审核</div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" class="mt-4">
-      <el-col :span="12">
-        <el-card>
-          <template #header>
-            <h3>Assets by Type</h3>
-          </template>
-          <div class="type-stats">
-            <div v-for="(count, type) in statistics.assetsByType" :key="type" class="type-stat-item">
-              <span class="type-name">{{ getTypeName(type) }}</span>
-              <el-progress :percentage="getTypePercentage(type)" :color="getTypeColor(type)" />
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="12">
-        <el-card>
-          <template #header>
-            <h3>Engagement</h3>
-          </template>
-          <el-row :gutter="20">
-            <el-col :span="8">
-              <div class="engagement-item">
-                <el-icon :size="32" color="#1890ff"><View /></el-icon>
-                <div class="engagement-value">{{ statistics.totalViews || 0 }}</div>
-                <div class="engagement-label">Views</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="engagement-item">
-                <el-icon :size="32" color="#52c41a"><Download /></el-icon>
-                <div class="engagement-value">{{ statistics.totalDownloads || 0 }}</div>
-                <div class="engagement-label">Downloads</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="engagement-item">
-                <el-icon :size="32" color="#f5222d"><Star /></el-icon>
-                <div class="engagement-value">{{ statistics.totalLikes || 0 }}</div>
-                <div class="engagement-label">Likes</div>
-              </div>
-            </el-col>
-          </el-row>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="20" class="mt-4">
-      <el-col :span="24">
-        <el-card>
-          <template #header>
-            <h3>Recent Activity (Last 30 Days)</h3>
-          </template>
-          <el-table :data="dailyStats" stripe>
-            <el-table-column prop="date" label="Date" width="120" />
-            <el-table-column prop="count" label="New Assets">
-              <template #default="{ row }">
-                <el-tag :type="row.count > 0 ? 'success' : 'info'">{{ row.count }}</el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
+    <el-card style="margin-top: 20px;">
+      <template #header>
+        <h2>最近活动</h2>
+      </template>
+      <el-empty description="暂无数据" />
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import {
-  DataLine,
-  CircleCheck,
-  Clock,
-  User,
-  View,
-  Download,
-  Star
-} from '@element-plus/icons-vue'
-import { adminApi } from '@/api/admin'
+import { reactive, onMounted } from 'vue'
+import request from '@/api/request'
 
-const loading = ref(false)
-const statistics = ref<any>({})
-const dailyStats = ref<any[]>([])
-
-onMounted(async () => {
-  await loadStatistics()
+const stats = reactive({
+  totalModels: 0,
+  totalSkills: 0,
+  totalUsers: 0,
+  pendingReview: 0
 })
 
-async function loadStatistics() {
-  loading.value = true
+const fetchStats = async () => {
   try {
-    const stats = await adminApi.getOverallStatistics()
-    statistics.value = stats
+    // 获取模型数量
+    const modelsRes = await request.get<any, any>('/llm/models')
+    if (modelsRes.code === 200) {
+      stats.totalModels = modelsRes.data?.length || 0
+    }
 
-    // Load daily stats
-    const daily = await adminApi.getDailyStatistics()
-    dailyStats.value = daily.dailyStats || []
+    // 获取 Skills 数量
+    const skillsRes = await request.get<any, any>('/assets?assetType=skill&status=approved')
+    if (skillsRes.code === 200) {
+      stats.totalSkills = skillsRes.data?.total || 0
+    }
+
+    // 获取待审核数量
+    const reviewRes = await request.get<any, any>('/assets?status=pending_review')
+    if (reviewRes.code === 200) {
+      stats.pendingReview = reviewRes.data?.total || 0
+    }
   } catch (error) {
-    console.error('Failed to load statistics:', error)
-  } finally {
-    loading.value = false
+    console.error('获取统计数据失败', error)
   }
 }
 
-function getTypeName(type: string) {
-  const names: Record<string, string> = {
-    llm_model: 'LLM Models',
-    skill: 'Skills'
-  }
-  return names[type] || type
-}
-
-function getTypeColor(type: string) {
-  const colors: Record<string, string> = {
-    llm_model: '#1890ff',
-    skill: '#52c41a'
-  }
-  return colors[type] || '#722ed1'
-}
-
-function getTypePercentage(type: string) {
-  const total = statistics.value.totalAssets || 0
-  const count = statistics.value.assetsByType?.[type] || 0
-  return total > 0 ? Math.round((count / total) * 100) : 0
-}
+onMounted(() => {
+  fetchStats()
+})
 </script>
 
 <style scoped>
+.statistics {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
 .stat-card {
-  margin-bottom: 20px;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
+  text-align: center;
+  padding: 20px;
 }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 36px;
   font-weight: bold;
-  color: #303133;
+  color: #409eff;
 }
 
 .stat-label {
   font-size: 14px;
   color: #909399;
-}
-
-.type-stats {
-  padding: 10px 0;
-}
-
-.type-stat-item {
-  margin-bottom: 20px;
-}
-
-.type-name {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.engagement-item {
-  text-align: center;
-  padding: 10px;
-}
-
-.engagement-value {
-  font-size: 24px;
-  font-weight: bold;
-  margin: 10px 0;
-}
-
-.engagement-label {
-  color: #909399;
-}
-
-.mt-4 {
-  margin-top: 20px;
+  margin-top: 8px;
 }
 </style>

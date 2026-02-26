@@ -1,196 +1,129 @@
 <template>
   <div class="review-queue">
-    <el-row :gutter="20">
-      <el-col :span="18">
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <h3>Pending Reviews</h3>
-              <el-button @click="loadPending">Refresh</el-button>
-            </div>
+    <el-card>
+      <template #header>
+        <h2>审核队列</h2>
+      </template>
+
+      <el-table :data="items" v-loading="loading">
+        <el-table-column prop="name" label="名称" />
+        <el-table-column prop="assetType" label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.assetType === 'skill' ? 'success' : 'primary'">
+              {{ row.assetType === 'skill' ? 'Skill' : 'LLM' }}
+            </el-tag>
           </template>
-
-          <el-table :data="pendingAssets" v-loading="loading" stripe>
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="name" label="Name" />
-            <el-table-column prop="type" label="Type" width="120">
-              <template #default="{ row }">
-                <el-tag>{{ row.type === 'llm_model' ? 'LLM Model' : 'Skill' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="categoryName" label="Category" />
-            <el-table-column prop="creatorName" label="Creator" />
-            <el-table-column prop="createdAt" label="Submitted At" width="180">
-              <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-            </el-table-column>
-            <el-table-column label="Actions" width="150" fixed="right">
-              <template #default="{ row }">
-                <el-button type="primary" size="small" @click="reviewAsset(row.id)">Review</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-
-      <el-col :span="6">
-        <el-card>
-          <template #header>
-            <h3>Review Details</h3>
+        </el-table-column>
+        <el-table-column prop="createdBy" label="提交者" width="120" />
+        <el-table-column prop="updatedAt" label="提交时间" width="160" />
+        <el-table-column label="操作" width="200">
+          <template #default="{ row }">
+            <el-button text type="primary" @click="showDetail(row)">查看</el-button>
+            <el-button text type="success" @click="handleApprove(row)">通过</el-button>
+            <el-button text type="danger" @click="handleReject(row)">拒绝</el-button>
           </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
-          <div v-if="selectedAsset">
-            <el-descriptions :column="1" border>
-              <el-descriptions-item label="Name">{{ selectedAsset.name }}</el-descriptions-item>
-              <el-descriptions-item label="Type">{{ selectedAsset.type === 'llm_model' ? 'LLM Model' : 'Skill' }}</el-descriptions-item>
-              <el-descriptions-item label="Category">{{ selectedAsset.categoryName }}</el-descriptions-item>
-              <el-descriptions-item label="Creator">{{ selectedAsset.creatorName }}</el-descriptions-item>
-              <el-descriptions-item label="Description">{{ selectedAsset.description }}</el-descriptions-item>
-            </el-descriptions>
+    <el-dialog v-model="detailVisible" title="审核详情" width="600px">
+      <div v-if="currentItem">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="名称">{{ currentItem.name }}</el-descriptions-item>
+          <el-descriptions-item label="描述">{{ currentItem.description }}</el-descriptions-item>
+          <el-descriptions-item label="提交者">{{ currentItem.createdBy }}</el-descriptions-item>
+        </el-descriptions>
 
-            <div class="mt-4">
-              <h4>Content Preview</h4>
-              <div class="content-preview">{{ selectedAsset.content?.substring(0, 200) }}...</div>
-            </div>
+        <el-divider />
 
-            <div class="mt-4">
-              <el-form :model="reviewForm">
-                <el-form-item label="Comment">
-                  <el-input
-                    v-model="reviewForm.comment"
-                    type="textarea"
-                    :rows="4"
-                    placeholder="Enter your review comment"
-                  />
-                </el-form-item>
-              </el-form>
-
-              <el-button type="success" @click="approveAsset">Approve</el-button>
-              <el-button type="danger" @click="rejectAsset">Reject</el-button>
-              <el-button type="warning" @click="requestChanges">Request Changes</el-button>
-            </div>
-          </div>
-
-          <el-empty v-else description="Select an asset to review" />
+        <h4>内容预览</h4>
+        <el-card shadow="never" class="content-preview">
+          <pre>{{ currentItem.versions?.[0]?.content || '暂无内容' }}</pre>
         </el-card>
-      </el-col>
-    </el-row>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { assetApi } from '@/api/asset'
-import { adminApi } from '@/api/admin'
+import request from '@/api/request'
 
+const items = ref<any[]>([])
 const loading = ref(false)
-const pendingAssets = ref<any[]>([])
-const selectedAsset = ref<any>(null)
+const detailVisible = ref(false)
+const currentItem = ref<any>(null)
 
-const reviewForm = reactive({
-  comment: ''
-})
-
-onMounted(() => {
-  loadPending()
-})
-
-async function loadPending() {
+const fetchItems = async () => {
   loading.value = true
   try {
-    const result = await assetApi.searchAssets('', '', undefined, 1, 100)
-    pendingAssets.value = result.filter(a => a.status === 'pending')
+    const res = await request.get<any, any>('/assets?status=pending_review')
+    if (res.code === 200) {
+      items.value = res.data.records || []
+    }
   } catch (error) {
-    console.error('Failed to load pending assets:', error)
+    console.error('获取审核列表失败', error)
   } finally {
     loading.value = false
   }
 }
 
-async function reviewAsset(id: number) {
+const showDetail = async (row: any) => {
   try {
-    selectedAsset.value = await assetApi.getAsset(id)
-    reviewForm.comment = ''
+    const res = await request.get<any, any>(`/assets/${row.id}`)
+    if (res.code === 200) {
+      currentItem.value = res.data
+      detailVisible.value = true
+    }
   } catch (error) {
-    console.error('Failed to load asset:', error)
+    console.error('获取详情失败', error)
   }
 }
 
-async function approveAsset() {
-  if (!selectedAsset.value) return
-
+const handleApprove = async (row: any) => {
   try {
-    await adminApi.approveAsset(selectedAsset.value.id, reviewForm.comment)
-    ElMessage.success('Asset approved')
-    selectedAsset.value = null
-    await loadPending()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Approval failed')
+    await ElMessageBox.confirm('确定通过审核吗？', '提示')
+    await request.post(`/admin/assets/${row.id}/approve`, { comment: '' })
+    ElMessage.success('已通过')
+    fetchItems()
+  } catch (error) {
+    // cancelled
   }
 }
 
-async function rejectAsset() {
-  if (!selectedAsset.value) return
-
-  if (!reviewForm.comment) {
-    ElMessage.warning('Please provide a rejection reason')
-    return
-  }
-
+const handleReject = async (row: any) => {
   try {
-    await adminApi.rejectAsset(selectedAsset.value.id, reviewForm.comment)
-    ElMessage.success('Asset rejected')
-    selectedAsset.value = null
-    await loadPending()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Rejection failed')
+    const result = await ElMessageBox.prompt('请输入拒绝原因', '拒绝', {
+      inputPattern: /.+/,
+      inputErrorMessage: '请输入拒绝原因'
+    }) as { value: string }
+    await request.post<any, any>(`/admin/assets/${row.id}/reject`, { comment: result.value })
+    ElMessage.success('已拒绝')
+    fetchItems()
+  } catch (error) {
+    // cancelled
   }
 }
 
-async function requestChanges() {
-  if (!selectedAsset.value) return
-
-  if (!reviewForm.comment) {
-    ElMessage.warning('Please provide change request details')
-    return
-  }
-
-  try {
-    await adminApi.requestChanges(selectedAsset.value.id, reviewForm.comment)
-    ElMessage.success('Changes requested')
-    selectedAsset.value = null
-    await loadPending()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || 'Request failed')
-  }
-}
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleString()
-}
+onMounted(() => {
+  fetchItems()
+})
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header h3 {
-  margin: 0;
+.review-queue {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .content-preview {
-  background: #f5f5f5;
-  padding: 10px;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 300px;
+  overflow: auto;
 }
 
-.mt-4 {
-  margin-top: 16px;
+.content-preview pre {
+  white-space: pre-wrap;
+  margin: 0;
 }
 </style>

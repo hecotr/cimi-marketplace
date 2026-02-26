@@ -1,57 +1,66 @@
 <template>
   <el-container class="admin-layout">
-    <el-aside width="250px" class="admin-sidebar">
+    <el-aside width="220px" class="sidebar">
       <div class="logo">
-        <h2>AI Marketplace</h2>
-        <span class="badge">Admin</span>
+        <span>管理后台</span>
       </div>
+
       <el-menu
         :default-active="activeMenu"
+        class="sidebar-menu"
         router
-        background-color="#001529"
-        text-color="#fff"
-        active-text-color="#1890ff"
       >
-        <el-menu-item index="/admin/dashboard">
-          <el-icon><DataLine /></el-icon>
-          <span>Dashboard</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/assets">
-          <el-icon><Folder /></el-icon>
-          <span>Asset Management</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/approval">
-          <el-icon><CircleCheck /></el-icon>
-          <span>Review Queue</span>
+        <el-menu-item index="/admin/models">
+          <el-icon><Setting /></el-icon>
+          <span>模型管理</span>
         </el-menu-item>
         <el-menu-item index="/admin/categories">
-          <el-icon><Collection /></el-icon>
-          <span>Categories</span>
+          <el-icon><Folder /></el-icon>
+          <span>分类管理</span>
         </el-menu-item>
-        <el-menu-item index="/admin/llm-config">
-          <el-icon><Setting /></el-icon>
-          <span>LLM Config</span>
+        <el-menu-item index="/admin/review">
+          <el-icon><DocumentChecked /></el-icon>
+          <span>资产审核</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/api-keys">
+          <el-icon><Key /></el-icon>
+          <span>Key 审批</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/statistics">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>统计报表</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
 
     <el-container>
-      <el-header class="admin-header">
-        <div class="header-content">
-          <h1>{{ pageTitle }}</h1>
-          <div class="header-actions">
-            <el-button @click="goBack">Back to App</el-button>
-            <el-button type="danger" @click="logout">Logout</el-button>
-          </div>
+      <el-header class="header">
+        <el-breadcrumb separator="/">
+          <el-breadcrumb-item :to="{ path: '/admin' }">管理后台</el-breadcrumb-item>
+          <el-breadcrumb-item>{{ currentPageTitle }}</el-breadcrumb-item>
+        </el-breadcrumb>
+
+        <div class="header-actions">
+          <el-button text @click="$router.push('/')">
+            返回前台
+          </el-button>
+          <el-dropdown trigger="click">
+            <span class="user-info">
+              <el-avatar :size="32" class="avatar">
+                {{ userStore.userInfo?.username?.charAt(0).toUpperCase() }}
+              </el-avatar>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
 
-      <el-main class="admin-main">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+      <el-main class="main-content">
+        <router-view />
       </el-main>
     </el-container>
   </el-container>
@@ -61,13 +70,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import {
-  DataLine,
-  Folder,
-  CircleCheck,
-  Collection,
-  Setting
-} from '@element-plus/icons-vue'
+import { Setting, Folder, DocumentChecked, DataAnalysis, Key } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -75,92 +78,84 @@ const userStore = useUserStore()
 
 const activeMenu = computed(() => route.path)
 
-const pageTitle = computed(() => {
+const currentPageTitle = computed(() => {
   const titles: Record<string, string> = {
-    '/admin/dashboard': 'Dashboard',
-    '/admin/assets': 'Asset Management',
-    '/admin/approval': 'Review Queue',
-    '/admin/categories': 'Category Management',
-    '/admin/llm-config': 'LLM Configuration'
+    '/admin/models': '模型管理',
+    '/admin/categories': '分类管理',
+    '/admin/review': '资产审核',
+    '/admin/api-keys': 'Key 审批',
+    '/admin/statistics': '统计报表'
   }
-  return titles[route.path] || 'Admin Panel'
+  return titles[route.path] || ''
 })
 
-function goBack() {
-  router.push('/')
-}
-
-function logout() {
-  userStore.logout()
+const handleLogout = async () => {
+  await userStore.logout()
   router.push('/login')
 }
 </script>
 
 <style scoped>
 .admin-layout {
-  height: 100vh;
+  min-height: 100vh;
 }
 
-.admin-sidebar {
-  background-color: #001529;
-  height: 100vh;
+.sidebar {
+  background: #304156;
 }
 
 .logo {
-  padding: 20px;
-  color: white;
+  height: 60px;
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.logo h2 {
-  margin: 0;
+  justify-content: center;
+  color: #fff;
   font-size: 18px;
+  font-weight: bold;
+  border-bottom: 1px solid #3a4a5d;
 }
 
-.badge {
-  background: #1890ff;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+.sidebar-menu {
+  border-right: none;
+  background: transparent;
 }
 
-.admin-header {
-  background: white;
-  border-bottom: 1px solid #f0f0f0;
-  padding: 0 20px;
+.sidebar-menu .el-menu-item {
+  color: #bfcbd9;
 }
 
-.header-content {
+.sidebar-menu .el-menu-item:hover,
+.sidebar-menu .el-menu-item.is-active {
+  background: #263445;
+  color: #409eff;
+}
+
+.header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  height: 100%;
-}
-
-.header-content h1 {
-  margin: 0;
-  font-size: 20px;
+  justify-content: space-between;
+  background: #fff;
+  border-bottom: 1px solid #e6e6e6;
+  padding: 0 20px;
 }
 
 .header-actions {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 16px;
 }
 
-.admin-main {
-  background: #f5f5f5;
+.user-info {
+  cursor: pointer;
+}
+
+.avatar {
+  background: #409eff;
+  color: #fff;
+}
+
+.main-content {
+  background: #f5f7fa;
   padding: 20px;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>

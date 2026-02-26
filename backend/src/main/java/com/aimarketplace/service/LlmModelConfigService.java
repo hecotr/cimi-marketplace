@@ -1,43 +1,46 @@
 package com.aimarketplace.service;
 
-import com.aimarketplace.dto.LlmModelConfigDTO;
-import com.aimarketplace.dto.LlmModelConfigRequest;
-import com.baomidou.mybatisplus.extension.service.IService;
+import com.aimarketplace.dto.LlmModelDTO;
+import com.aimarketplace.dto.LlmTestRequest;
+import com.aimarketplace.dto.LlmTestResponse;
+import com.aimarketplace.entity.LlmModelConfig;
 
 import java.util.List;
 
-/**
- * LLM Model Config Service Interface
- */
-public interface LlmModelConfigService extends IService<com.aimarketplace.entity.LlmModelConfig> {
+public interface LlmModelConfigService {
 
     /**
-     * Create or update config
+     * 获取所有活跃的 LLM 模型配置
      */
-    LlmModelConfigDTO upsertConfig(LlmModelConfigRequest request);
+    List<LlmModelDTO> getActiveModels();
 
     /**
-     * Get all configs for a model
+     * 获取所有 LLM 模型配置（管理员）
      */
-    List<LlmModelConfigDTO> getConfigsByModelId(Long modelId);
+    List<LlmModelDTO> getAllModels();
 
     /**
-     * Get public configs (non-encrypted)
+     * 获取模型详情
      */
-    List<LlmModelConfigDTO> getPublicConfigsByModelId(Long modelId);
+    LlmModelDTO getModelById(Long id);
 
     /**
-     * Get config by key
+     * 测试 LLM 模型
      */
-    LlmModelConfigDTO getConfigByKey(Long modelId, String key);
+    LlmTestResponse testModel(LlmTestRequest request);
 
     /**
-     * Delete config
+     * 创建模型配置（管理员）
      */
-    void deleteConfig(Long id);
+    Long createModel(LlmModelConfig config);
 
     /**
-     * Bulk update configs
+     * 更新模型配置（管理员）
      */
-    List<LlmModelConfigDTO> bulkUpdateConfigs(Long modelId, List<LlmModelConfigRequest> requests);
+    void updateModel(Long id, LlmModelConfig config);
+
+    /**
+     * 删除模型配置（管理员）
+     */
+    void deleteModel(Long id);
 }

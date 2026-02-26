@@ -1,163 +1,101 @@
-import axios from 'axios'
-
-export interface ApprovalCallbackRequest {
-  action: 'approve' | 'reject' | 'request_changes'
-  comment: string
-}
-
-export interface Statistics {
-  totalAssets: number
-  totalPublishedAssets: number
-  pendingApprovals: number
-  totalUsers: number
-  assetsByType: Record<string, number>
-  totalViews: number
-  totalDownloads: number
-  totalLikes: number
-}
+import request from './request'
 
 export interface Category {
   id: number
   name: string
-  description?: string
-  icon?: string
-  parentId?: number
-  parentName?: string
+  parentId: number
+  assetType: string
   sortOrder: number
-  status: string
-  assetCount?: number
-  createdAt: string
-  children?: Category[]
 }
 
-export interface CategoryRequest {
-  name: string
-  description?: string
-  icon?: string
-  parentId?: number
-  sortOrder?: number
-  status?: string
-}
-
-export interface LlmModelConfigDTO {
+export interface ApiKey {
   id: number
-  llmModelId: number
-  modelName?: string
-  configKey: string
-  configValue: string
-  configType: string
-  isEncrypted: boolean
-  createdAt: string
-  updatedAt: string
+  userId: number
+  modelConfigId: number
+  keyValue: string
+  apiProtocol: string
+  status: string
+  expiryType: string
+  applyTime: string
+  approveTime: string
+  expiryDate: string
+  approverId: number
+  rejectionReason: string
+}
+
+export interface ApiKeyApplyRequest {
+  modelConfigId: number
+  apiProtocol: string
+  expiryType: string
 }
 
 export const adminApi = {
-  // Approval
-  async approveAsset(assetId: number, comment: string) {
-    const response = await axios.post(`/api/admin/approval/${assetId}/approve`, {
-      action: 'approve',
-      comment
-    })
-    return response.data.data
-  },
+  // ===== 分类管理 =====
+  getCategories: (assetType?: string) =>
+    request.get<any, any>('/categories', { params: { assetType } }),
 
-  async rejectAsset(assetId: number, comment: string) {
-    const response = await axios.post(`/api/admin/approval/${assetId}/reject`, {
-      action: 'reject',
-      comment
-    })
-    return response.data.data
-  },
+  createCategory: (data: Partial<Category>) =>
+    request.post<any, any>('/admin/categories', data),
 
-  async requestChanges(assetId: number, comment: string) {
-    const response = await axios.post(`/api/admin/approval/${assetId}/request-changes`, {
-      action: 'request_changes',
-      comment
-    })
-    return response.data.data
-  },
+  updateCategory: (id: number, data: Partial<Category>) =>
+    request.put<any, any>(`/admin/categories/${id}`, data),
 
-  async getPendingApprovals() {
-    const response = await axios.get('/api/admin/approval/pending')
-    return response.data.data
-  },
+  deleteCategory: (id: number) =>
+    request.delete<any, any>(`/admin/categories/${id}`),
 
-  async getApprovalHistory(assetId: number) {
-    const response = await axios.get(`/api/admin/approval/history/${assetId}`)
-    return response.data.data
-  },
+  // ===== 资产审核 =====
+  getPendingAssets: (page = 1, size = 10) =>
+    request.get<any, any>('/admin/assets/pending', { params: { page, size } }),
 
-  // Statistics
-  async getOverallStatistics(): Promise<Statistics> {
-    const response = await axios.get('/api/admin/statistics/overall')
-    return response.data.data
-  },
+  approveAsset: (id: number, comment?: string) =>
+    request.post<any, any>(`/admin/assets/${id}/approve`, { comment }),
 
-  async getDailyStatistics(startDate?: string, endDate?: string) {
-    const response = await axios.get('/api/admin/statistics/daily', {
-      params: { startDate, endDate }
-    })
-    return response.data.data
-  },
+  rejectAsset: (id: number, comment: string) =>
+    request.post<any, any>(`/admin/assets/${id}/reject`, { comment }),
 
-  async getCategoryStatistics() {
-    const response = await axios.get('/api/admin/statistics/category')
-    return response.data.data
-  },
+  // ===== API Key 审批 =====
+  getPendingApiKeys: () =>
+    request.get<any, any>('/admin/api-keys/pending'),
 
-  // Categories
-  async createCategory(request: CategoryRequest): Promise<Category> {
-    const response = await axios.post('/api/admin/category', request)
-    return response.data.data
-  },
+  approveApiKey: (id: number) =>
+    request.post<any, any>(`/admin/api-keys/${id}/approve`),
 
-  async updateCategory(id: number, request: CategoryRequest): Promise<Category> {
-    const response = await axios.put(`/api/admin/category/${id}`, request)
-    return response.data.data
-  },
+  rejectApiKey: (id: number, reason: string) =>
+    request.post<any, any>(`/admin/api-keys/${id}/reject`, { reason })
+}
 
-  async deleteCategory(id: number) {
-    await axios.delete(`/api/admin/category/${id}`)
-  },
+export const apiKeyApi = {
+  // 申请 API Key
+  apply: (data: ApiKeyApplyRequest) =>
+    request.post<any, any>('/api-keys', data),
 
-  async getCategory(id: number): Promise<Category> {
-    const response = await axios.get(`/api/admin/category/${id}`)
-    return response.data.data
-  },
+  // 获取我的 API Keys
+  getMyKeys: () =>
+    request.get<any, any>('/api-keys/my'),
 
-  async getCategories(status?: string): Promise<Category[]> {
-    const response = await axios.get('/api/admin/category', {
-      params: { status }
-    })
-    return response.data.data || []
-  },
+  // 撤销 API Key
+  revoke: (id: number) =>
+    request.post<any, any>(`/api-keys/${id}/revoke`)
+}
 
-  async getCategoryTree(): Promise<Category[]> {
-    const response = await axios.get('/api/admin/category/tree')
-    return response.data.data || []
-  },
+export const interactionApi = {
+  // 收藏
+  addFavorite: (assetId: number, assetType: string) =>
+    request.post<any, any>('/interactions/favorite', { assetId, assetType }),
 
-  async updateCategorySort(id: number, sortOrder: number) {
-    await axios.put(`/api/admin/category/${id}/sort`, null, {
-      params: { sortOrder }
-    })
-  },
+  removeFavorite: (assetId: number, assetType: string) =>
+    request.delete<any, any>(`/interactions/favorite?assetId=${assetId}&assetType=${assetType}`),
 
-  // LLM Config
-  async upsertLlmConfig(modelId: number, config: any) {
-    const response = await axios.post('/api/admin/llm-config', {
-      ...config,
-      llmModelId: modelId
-    })
-    return response.data.data
-  },
+  checkFavorite: (assetId: number, assetType: string) =>
+    request.get<any, any>(`/interactions/favorite/check?assetId=${assetId}&assetType=${assetType}`),
 
-  async deleteLlmConfig(id: number) {
-    await axios.delete(`/api/admin/llm-config/${id}`)
-  },
+  // 点赞
+  addLike: (assetId: number, assetType: string, versionId?: number) =>
+    request.post<any, any>('/interactions/like', { assetId, assetType, versionId }),
 
-  async getConfigsByModelId(modelId: number) {
-    const response = await axios.get(`/api/admin/llm-config/model/${modelId}`)
-    return response.data.data || []
-  }
+  removeLike: (assetId: number, assetType: string, versionId?: number) =>
+    request.delete<any, any>(`/interactions/like?assetId=${assetId}&assetType=${assetType}${versionId ? `&versionId=${versionId}` : ''}`),
+
+  checkLike: (assetId: number, assetType: string, versionId?: number) =>
+    request.get<any, any>(`/interactions/like/check?assetId=${assetId}&assetType=${assetType}${versionId ? `&versionId=${versionId}` : ''}`)
 }

@@ -12,10 +12,14 @@ public class ApiKey {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
-    private Long modelId;
+    private Long modelConfigId;
     private String keyValue;
-    private String status;
+    private String apiProtocol; // openai, anthropic
+    private String status; // pending, approved, rejected, expired
+    private String expiryType; // 3m, 6m, 1y, permanent
     private LocalDateTime applyTime;
     private LocalDateTime approveTime;
     private LocalDateTime expiryDate;
+    private Long approverId;
+    private String rejectionReason;
 }

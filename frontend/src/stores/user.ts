@@ -1,57 +1,65 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import axios from 'axios'
-
-export interface User {
-  id: number
-  username: string
-  email: string
-  department: string
-  role?: string
-}
+import { authApi, type UserInfo } from '@/api/auth'
 
 export const useUserStore = defineStore('user', () => {
-  const user = ref<User | null>(null)
-  const token = ref<string | null>(localStorage.getItem('token'))
-  const isAuthenticated = ref(!!token.value)
+  const userInfo = ref<UserInfo | null>(null)
+  const isLoggedIn = ref(false)
 
-  function setUser(u: User | null) {
-    user.value = u
-  }
-
-  function setToken(t: string | null) {
-    token.value = t
-    isAuthenticated.value = !!t
-    if (t) {
-      localStorage.setItem('token', t)
-      axios.defaults.headers.common['Authorization'] = `Bearer ${t}`
-    } else {
-      localStorage.removeItem('token')
-      delete axios.defaults.headers.common['Authorization']
+  // 登录
+  const login = async (username: string, password: string) => {
+    try {
+      const res = await authApi.login({ username, password })
+      if (res.code === 200 && res.data) {
+        userInfo.value = res.data
+        isLoggedIn.value = true
+        return true
+      }
+      return false
+    } catch (error) {
+      return false
     }
   }
 
-  function logout() {
-    setUser(null)
-    setToken(null)
+  // 登出
+  const logout = async () => {
+    try {
+      await authApi.logout()
+    } catch (error) {
+      // ignore
+    } finally {
+      userInfo.value = null
+      isLoggedIn.value = false
+      localStorage.removeItem('sessionId')
+    }
   }
 
-  function hasRole(role: string): boolean {
-    return user.value?.role === role
+  // 获取用户信息
+  const fetchUserInfo = async () => {
+    try {
+      const res = await authApi.getCurrentUser()
+      if (res.code === 200 && res.data) {
+        userInfo.value = res.data
+        isLoggedIn.value = true
+        return true
+      }
+      return false
+    } catch (error) {
+      return false
+    }
   }
 
-  function isAdmin(): boolean {
-    return hasRole('admin')
+  // 检查是否为管理员
+  const isAdmin = () => {
+    return userInfo.value?.role === 'admin'
   }
 
   return {
-    user,
-    token,
-    isAuthenticated,
-    setUser,
-    setToken,
+    userInfo,
+    isLoggedIn,
+    login,
     logout,
-    hasRole,
+    fetchUserInfo,
     isAdmin
   }
 })

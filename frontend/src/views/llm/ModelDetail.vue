@@ -3,95 +3,77 @@
     <el-card v-if="model">
       <template #header>
         <div class="card-header">
-          <div class="header-left">
-            <h3>{{ model.name }}</h3>
-            <VersionSelector
-              v-if="model.assetId"
-              :asset-id="model.assetId"
-              v-model="selectedVersion"
-              @change="handleVersionChange"
-            />
+          <el-button text @click="$router.back()">
+            <el-icon><ArrowLeft /></el-icon>
+            返回
+          </el-button>
+          <h2>{{ model.name }}</h2>
+          <div class="actions">
+            <el-button
+              :type="isFavorited ? 'warning' : 'default'"
+              :icon="Star"
+              @click="handleFavorite"
+              :loading="favoriteLoading"
+            >
+              {{ isFavorited ? '已收藏' : '收藏' }}
+            </el-button>
+            <el-button
+              :type="isLiked ? 'danger' : 'default'"
+              :icon="isLiked ? 'heart-filled' : 'heart'"
+              @click="handleLike"
+              :loading="likeLoading"
+            >
+              {{ isLiked ? '已点赞' : '点赞' }}
+            </el-button>
+            <el-button type="primary" @click="$router.push('/my-keys')">
+              申请 API Key
+            </el-button>
           </div>
-          <el-button @click="goBack">返回</el-button>
         </div>
       </template>
 
-      <div class="model-info">
-        <el-tag>{{ model.provider }}</el-tag>
-        <el-tag type="info">{{ model.status }}</el-tag>
-      </div>
-
-      <p class="description">{{ model.description }}</p>
-
-      <div class="info-grid">
-        <div class="info-item">
-          <label>模型名称:</label>
-          <span>{{ model.modelName }}</span>
-        </div>
-        <div class="info-item">
-          <label>最大 Token:</label>
-          <span>{{ model.maxTokens }}</span>
-        </div>
-      </div>
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="提供商">{{ model.provider }}</el-descriptions-item>
+        <el-descriptions-item label="模型名称">{{ model.modelName }}</el-descriptions-item>
+        <el-descriptions-item label="分类">{{ model.categoryName }}</el-descriptions-item>
+        <el-descriptions-item label="最大 Tokens">{{ model.maxTokens }}</el-descriptions-item>
+        <el-descriptions-item label="API 协议">{{ model.apiProtocol }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="model.status === 'active' ? 'success' : 'info'">
+            {{ model.status === 'active' ? '活跃' : '停用' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="描述" :span="2">{{ model.description || '暂无描述' }}</el-descriptions-item>
+      </el-descriptions>
 
       <el-divider />
 
-      <div class="test-section">
-        <h4>在线测试</h4>
-        <el-form :model="testForm" label-width="100px">
-          <el-form-item label="Temperature">
-            <el-slider v-model="testForm.temperature" :min="0" :max="1" :step="0.1" />
-            <span class="slider-value">{{ testForm.temperature }}</span>
-          </el-form-item>
-          <el-form-item label="Max Tokens">
-            <el-input-number v-model="testForm.maxTokens" :min="1" :max="model.maxTokens" />
-          </el-form-item>
-          <el-form-item label="Top P">
-            <el-slider v-model="testForm.topP" :min="0" :max="1" :step="0.1" />
-            <span class="slider-value">{{ testForm.topP }}</span>
-          </el-form-item>
-          <el-form-item label="提示词">
-            <el-input
-              v-model="testForm.prompt"
-              type="textarea"
-              :rows="4"
-              placeholder="请输入提示词..."
-            />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="sendTest" :loading="loading">
-              发送测试
-            </el-button>
-          </el-form-item>
-        </el-form>
-      </div>
+      <h3>测试模型</h3>
+      <el-form :model="testForm" label-position="top">
+        <el-form-item label="输入提示词">
+          <el-input
+            v-model="testForm.prompt"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入要测试的提示词"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="testing" @click="handleTest">
+            发送测试
+          </el-button>
+        </el-form-item>
+      </el-form>
 
-      <el-divider />
-
-      <div class="version-history" v-if="model.assetId">
-        <VersionHistory :asset-id="model.assetId" />
-      </div>
-
-      <el-divider />
-
-      <div class="response-section" v-if="response">
-        <h4>测试结果</h4>
-        <div class="chat-messages">
-          <div class="message">
-            <div class="message-label">用户:</div>
-            <div class="message-content user">{{ testForm.prompt }}</div>
+      <div v-if="testResult" class="test-result">
+        <h4>响应结果</h4>
+        <el-card shadow="never">
+          <pre>{{ testResult.response }}</pre>
+          <div class="meta">
+            <span>响应时间: {{ testResult.responseTime }}ms</span>
+            <span>Tokens: {{ testResult.totalTokens }}</span>
           </div>
-          <div class="message">
-            <div class="message-label">助手:</div>
-            <div class="message-content assistant">{{ response.response }}</div>
-          </div>
-        </div>
-        <div class="metrics">
-          <el-tag type="info">响应时间: {{ response.responseTime }}ms</el-tag>
-          <el-tag type="success">Input Tokens: {{ response.tokenUsage.inputTokens }}</el-tag>
-          <el-tag type="warning">Output Tokens: {{ response.tokenUsage.outputTokens }}</el-tag>
-          <el-tag>Total Tokens: {{ response.tokenUsage.totalTokens }}</el-tag>
-        </div>
+        </el-card>
       </div>
     </el-card>
   </div>
@@ -99,168 +81,191 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { getModelDetail, testModel } from '@/api/llm'
-import type { LlmModelDTO, LlmTestRequest } from '@/types/llm'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import VersionSelector from '@/components/VersionSelector.vue'
-import VersionHistory from '@/components/VersionHistory.vue'
+import { ArrowLeft, Star } from '@element-plus/icons-vue'
+import request from '@/api/request'
+
+interface LlmModel {
+  id: number
+  name: string
+  provider: string
+  modelName: string
+  description: string
+  categoryName: string
+  apiProtocol: string
+  maxTokens: number
+  status: string
+}
 
 const route = useRoute()
-const router = useRouter()
-const modelId = Number(route.params.id)
-const model = ref<LlmModelDTO>()
-const loading = ref(false)
-
-const testForm = ref<LlmTestRequest>({
-  modelId: modelId,
-  prompt: '',
-  temperature: 0.7,
-  maxTokens: 2048,
-  topP: 0.9
+const model = ref<LlmModel | null>(null)
+const testForm = ref({
+  prompt: ''
 })
+const testing = ref(false)
+const testResult = ref<any>(null)
 
-const response = ref<any>()
-const selectedVersion = ref('')
+// 收藏/点赞状态
+const isFavorited = ref(false)
+const isLiked = ref(false)
+const favoriteLoading = ref(false)
+const likeLoading = ref(false)
 
-onMounted(async () => {
-  const data = await getModelDetail(modelId)
-  model.value = data.data
-  testForm.value.maxTokens = data.data.maxTokens
-})
+const fetchModel = async () => {
+  const id = route.params.id
+  try {
+    const res = await request.get<any, any>(`/llm/models/${id}`)
+    if (res.code === 200) {
+      model.value = res.data
+      // 检查收藏/点赞状态
+      checkInteractionStatus()
+    }
+  } catch (error) {
+    console.error('获取模型详情失败', error)
+  }
+}
 
-const sendTest = async () => {
+const checkInteractionStatus = async () => {
+  if (!model.value) return
+
+  try {
+    // 检查收藏状态
+    const favRes = await request.get<any, any>(
+      `/interactions/favorite/check?assetId=${model.value.id}&assetType=llm`
+    )
+    if (favRes.code === 200) {
+      isFavorited.value = favRes.data?.isFavorited || false
+    }
+
+    // 检查点赞状态
+    const likeRes = await request.get<any, any>(
+      `/interactions/like/check?assetId=${model.value.id}&assetType=llm`
+    )
+    if (likeRes.code === 200) {
+      isLiked.value = likeRes.data?.isLiked || false
+    }
+  } catch (error) {
+    console.error('检查状态失败', error)
+  }
+}
+
+const handleFavorite = async () => {
+  if (!model.value) return
+
+  favoriteLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await request.delete(
+        `/interactions/favorite?assetId=${model.value.id}&assetType=llm`
+      )
+      isFavorited.value = false
+      ElMessage.success('已取消收藏')
+    } else {
+      await request.post('/interactions/favorite', {
+        assetId: model.value.id,
+        assetType: 'llm'
+      })
+      isFavorited.value = true
+      ElMessage.success('收藏成功')
+    }
+  } catch (error) {
+    ElMessage.error('操作失败')
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
+const handleLike = async () => {
+  if (!model.value) return
+
+  likeLoading.value = true
+  try {
+    if (isLiked.value) {
+      await request.delete(
+        `/interactions/like?assetId=${model.value.id}&assetType=llm`
+      )
+      isLiked.value = false
+      ElMessage.success('已取消点赞')
+    } else {
+      await request.post('/interactions/like', {
+        assetId: model.value.id,
+        assetType: 'llm'
+      })
+      isLiked.value = true
+      ElMessage.success('点赞成功')
+    }
+  } catch (error) {
+    ElMessage.error('操作失败')
+  } finally {
+    likeLoading.value = false
+  }
+}
+
+const handleTest = async () => {
   if (!testForm.value.prompt.trim()) {
     ElMessage.warning('请输入提示词')
     return
   }
 
-  loading.value = true
+  testing.value = true
   try {
-    const data = await testModel(testForm.value)
-    response.value = data.data
+    const res = await request.post<any, any>('/llm/test', {
+      modelConfigId: model.value?.id,
+      prompt: testForm.value.prompt
+    })
+    if (res.code === 200) {
+      testResult.value = res.data
+    }
   } catch (error) {
     ElMessage.error('测试失败')
   } finally {
-    loading.value = false
+    testing.value = false
   }
 }
 
-const goBack = () => {
-  router.back()
-}
-
-const handleVersionChange = async (version: string) => {
-  // Reload model data for the selected version
-  if (model.value?.assetId) {
-    // Implementation depends on how version-specific data is loaded
-    console.log('Version changed to:', version)
-  }
-}
+onMounted(() => {
+  fetchModel()
+})
 </script>
 
 <style scoped>
 .model-detail {
-  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-left {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.model-info {
+.card-header h2 {
+  margin: 0;
+  flex: 1;
+}
+
+.actions {
   display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
+  gap: 8px;
 }
 
-.description {
-  color: #666;
-  line-height: 1.8;
-  margin: 15px 0;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-
-.info-item label {
-  color: #999;
-  margin-right: 8px;
-}
-
-.info-item span {
-  font-weight: 500;
-}
-
-.test-section {
+.test-result {
   margin-top: 20px;
 }
 
-.slider-value {
-  margin-left: 10px;
-  color: #409eff;
-  font-weight: bold;
+.test-result pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
 }
 
-.version-history {
-  margin: 20px 0;
-}
-
-.response-section {
-  margin-top: 20px;
-}
-
-.chat-messages {
-  min-height: 300px;
-  max-height: 500px;
-  overflow-y: auto;
-  border: 1px solid #e6e6e6;
-  border-radius: 4px;
-  padding: 15px;
-  margin-bottom: 10px;
-}
-
-.message {
-  margin-bottom: 15px;
-}
-
-.message-label {
+.test-result .meta {
+  margin-top: 12px;
+  display: flex;
+  gap: 20px;
+  color: #909399;
   font-size: 12px;
-  color: #999;
-  margin-bottom: 5px;
-}
-
-.message-content {
-  max-width: 80%;
-  padding: 10px 15px;
-  border-radius: 8px;
-  line-height: 1.5;
-}
-
-.message-content.user {
-  background-color: #409eff;
-  color: white;
-  margin-left: auto;
-}
-
-.message-content.assistant {
-  background-color: #f0f0f0;
-  color: #333;
-}
-
-.metrics {
-  display: flex;
-  gap: 10px;
 }
 </style>
