@@ -182,30 +182,88 @@ npm run dev
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| DB_HOST | 10.254.254.103 | 数据库地址 |
+| DB_HOST | localhost | 数据库地址 |
 | DB_PORT | 5432 | 数据库端口 |
 | DB_NAME | ai_marketplace | 数据库名称 |
 | DB_USERNAME | postgres | 数据库用户名 |
 | DB_PASSWORD | postgres | 数据库密码 |
-| MINIO_ENDPOINT | http://10.254.254.103:9000 | MinIO 地址 |
+| MINIO_ENDPOINT | http://localhost:9000 | MinIO 地址 |
 | MINIO_ACCESS_KEY | minioadmin | MinIO Access Key |
 | MINIO_SECRET_KEY | minioadmin | MinIO Secret Key |
 | MINIO_BUCKET | ai-marketplace | MinIO Bucket |
 
 ## 构建部署
 
-### 后端构建
+### 方式一：Docker Compose（推荐）
+
+使用 Docker Compose 一键部署所有服务：
+
+```bash
+# 启动所有服务
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+
+# 停止所有服务
+docker-compose down
+```
+
+服务启动后：
+- **前端**: http://localhost
+- **后端 API**: http://localhost:8080
+- **MinIO 控制台**: http://localhost:9001 (minioadmin/minioadmin)
+
+### 方式二：单独构建
+
+#### 后端构建
 ```bash
 cd backend
 mvn clean package -DskipTests
 java -jar target/ai-marketplace-1.0.0.jar
 ```
 
-### 前端构建
+#### 前端构建
 ```bash
 cd frontend
 npm run build
 # 生成的文件在 dist/ 目录
+```
+
+### 方式三：Docker 单独构建
+
+```bash
+# 构建后端镜像
+docker build -t ai-marketplace-backend ./backend
+
+# 构建前端镜像
+docker build -t ai-marketplace-frontend ./frontend
+
+# 运行后端
+docker run -d -p 8080:8080 \
+  -e DB_HOST=your-db-host \
+  -e DB_PASSWORD=your-password \
+  ai-marketplace-backend
+
+# 运行前端
+docker run -d -p 80:80 ai-marketplace-frontend
+```
+
+## 目录结构（部署文件）
+
+```
+ai-marketplace/
+├── docker-compose.yml        # Docker Compose 配置
+├── backend/
+│   ├── Dockerfile           # 后端 Docker 镜像
+│   └── .dockerignore        # Docker 忽略文件
+└── frontend/
+    ├── Dockerfile           # 前端 Docker 镜像
+    ├── nginx.conf           # Nginx 配置
+    └── .dockerignore        # Docker 忽略文件
 ```
 
 ## License

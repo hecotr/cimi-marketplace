@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.idea/
+*.iml
+.git/
+.gitignore
+README.md
+*.local
