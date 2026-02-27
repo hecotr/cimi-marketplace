@@ -22,8 +22,9 @@ public class AssetPublishRequest {
 
     private String tags;
 
-    @NotBlank(message = "内容不能为空")
-    private String content; // 在线编辑内容
+    private String content; // 在线编辑内容（可选，上传模式时为空）
 
     private String fileType; // md, zip
+
+    private String storagePath; // 文件存储路径
 }

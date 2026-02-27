@@ -46,7 +46,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         // 放行登录接口
         String uri = request.getRequestURI();
-        if (uri.equals("/api/auth/login")) {
+        if (uri.equals("/api/auth/login") || uri.equals("/api/auth/gen-hash")) {
             return true;
         }
 

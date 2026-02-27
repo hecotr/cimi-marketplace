@@ -6,6 +6,7 @@ import com.aimarketplace.dto.LoginRequest;
 import com.aimarketplace.dto.LoginResponse;
 import com.aimarketplace.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -18,6 +19,14 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @GetMapping("/gen-hash")
+    public Result<String> genHash(@RequestParam String password) {
+        return Result.success(passwordEncoder.encode(password));
+    }
 
     @PostMapping("/login")
     public Result<LoginResponse> login(@RequestBody LoginRequest request,

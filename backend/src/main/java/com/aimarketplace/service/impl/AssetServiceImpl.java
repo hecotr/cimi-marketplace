@@ -86,8 +86,10 @@ public class AssetServiceImpl implements AssetService {
         if (assetType != null) {
             wrapper.eq(Asset::getAssetType, assetType);
         }
-        if (status != null) {
-            wrapper.eq(Asset::getStatus, status);
+        if (status != null && !status.isEmpty()) {
+            // 支持逗号分隔的多个状态
+            String[] statuses = status.split(",");
+            wrapper.in(Asset::getStatus, (Object[]) statuses);
         }
         wrapper.orderByDesc(Asset::getCreatedAt);
 

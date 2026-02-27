@@ -60,6 +60,13 @@
             <version>${minio.version}</version>
         </dependency>
 
+        <!-- OkHttp (MinIO 8.5.x requires OkHttp 4.x) -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.9.3</version>
+        </dependency>
+
         <!-- AWS S3 -->
         <dependency>
             <groupId>com.amazonaws</groupId>

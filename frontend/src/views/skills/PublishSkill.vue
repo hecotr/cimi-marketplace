@@ -31,7 +31,7 @@
 
         <el-divider content-position="left">内容</el-divider>
 
-        <el-form-item>
+        <el-form-item label="输入方式">
           <el-radio-group v-model="inputMode">
             <el-radio value="editor">在线编辑</el-radio>
             <el-radio value="upload">文件上传</el-radio>
@@ -39,12 +39,12 @@
         </el-form-item>
 
         <!-- 在线编辑模式 -->
-        <el-form-item v-if="inputMode === 'editor'" label="Prompt 内容" prop="content">
+        <el-form-item v-if="inputMode === 'editor'" label="Prompt 内容">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="15"
-            placeholder="请输入 Prompt 模板内容&#10;&#10;提示：可以使用 {{变量名}} 来标记需要用户输入的变量"
+            placeholder="请输入 Prompt 模板内容，可以使用 {{变量名}} 来标记需要用户输入的变量"
           />
         </el-form-item>
 
@@ -127,18 +127,6 @@ const rules: FormRules = {
   description: [
     { required: true, message: '请输入描述', trigger: 'blur' },
     { max: 1000, message: '描述不能超过1000字符', trigger: 'blur' }
-  ],
-  content: [
-    {
-      validator: (_rule, value, callback) => {
-        if (inputMode.value === 'editor' && !value?.trim()) {
-          callback(new Error('请输入内容'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
   ]
 }
 
@@ -208,6 +196,12 @@ const submitAsset = async (submitForReview: boolean) => {
   let valid = true
   await formRef.value.validate((v) => { valid = v })
   if (!valid) return
+
+  // 检查编辑模式下内容是否为空
+  if (inputMode.value === 'editor' && !form.content?.trim()) {
+    ElMessage.warning('请输入内容')
+    return
+  }
 
   // 检查上传模式是否有文件
   if (inputMode.value === 'upload' && !form.storagePath) {
